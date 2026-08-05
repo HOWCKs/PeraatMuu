@@ -138,6 +138,23 @@ constexpr unsigned RETRO_PIXEL_FORMAT_RGB565 = 2;
 // Tipos de memória
 constexpr unsigned RETRO_MEMORY_SAVE_RAM = 0;
 
+// ---------------------------------------------------------------------------
+// Opções de núcleo servidas via GET_VARIABLE (whitelist mínima).
+// Cada núcleo pergunta pelas chaves que conhece — o resto cai no padrão.
+// ---------------------------------------------------------------------------
+struct CoreOptKV {
+    const char *key;
+    const char *value;
+};
+
+static const CoreOptKV kCoreOptions[] = {
+    // ParaLLeL N64: renderizador angrylion = 100% software (não pede GPU).
+    {"parallel-n64-gfxplugin", "angrylion"},
+    // melonDS: garante empilhamento das duas telas e caneta por toque.
+    {"melonds_screen_layout", "Top/Bottom"},
+    {"melonds_touch_mode", "Touch"},
+};
+
 enum retro_log_level {
     RETRO_LOG_DEBUG = 0,
     RETRO_LOG_INFO = 1,
@@ -433,7 +450,15 @@ static bool environment_cb(unsigned cmd, void *data) {
         }
         case RETRO_ENV_GET_VARIABLE: {
             auto *var = static_cast<retro_variable *>(data);
-            if (var) var->value = nullptr;  // usa os padrões do núcleo
+            if (!var || !var->key) return false;
+            for (const auto &opt : kCoreOptions) {
+                if (strcmp(var->key, opt.key) == 0) {
+                    var->value = opt.value;
+                    LOGI("Opção do núcleo: %s = %s", opt.key, opt.value);
+                    return true;
+                }
+            }
+            var->value = nullptr;  // desconhecida — padrão do núcleo
             return false;
         }
         case RETRO_ENV_SET_VARIABLES:

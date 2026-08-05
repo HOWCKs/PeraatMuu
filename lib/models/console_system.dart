@@ -361,13 +361,15 @@ const kConsoleCatalog = <ConsoleSystem>[
     maker: 'Nintendo',
     year: 1996,
     extensions: ['z64', 'n64', 'v64'],
-    coreId: 'mupen64plus_next',
-    coreName: 'Mupen64Plus-Next',
+    coreId: 'parallel_n64',
+    coreName: 'ParaLLeL N64',
     gradient: [Color(0xFF455A64), Color(0xFF11191D)],
     icon: Icons.view_in_ar_rounded,
     status: ConsoleStatus.experimental,
-    hwRender: true,
-    notes: 'Exige GPU (OpenGL). Pode engasgar em aparelhos de entrada.',
+    notes:
+        'Usa renderizador por software (roda sem GPU forte) — jogos '
+        'simples como Mario 64 ficam jogáveis; jogos pesados vão engasgar '
+        'em aparelhos de entrada.',
     description:
         'O 64-bits da Nintendo dos cartuchos: Mario 64, Zelda Ocarina of '
         'Time, GoldenEye 007. Roda via GPU — desempenho varia bastante '

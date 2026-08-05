@@ -2,6 +2,17 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [1.3.1] - 2026-08-05
+
+### Corrigido
+- **Nintendo 64 agora tem núcleo de verdade:** o Mupen64Plus-Next sumiu
+  do buildbot oficial (404 em todas as arquiteturas); trocado pelo
+  **ParaLLeL N64** configurado com o renderizador de software *angrylion*
+  (roda sem depender de GPU forte — ideal para aparelhos de entrada).
+- A ponte nativa agora responde `GET_VARIABLE` com uma whitelist mínima
+  de opções de núcleo (renderer do N64 + layout de telas/toque do DS),
+  preparando terreno para mais opções por núcleo no futuro.
+
 ## [1.3.0] - 2026-08-05
 
 ### Adicionado
