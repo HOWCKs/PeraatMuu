@@ -19,7 +19,7 @@ class AppTheme {
     final base = ThemeData.dark();
     return base.copyWith(
       scaffoldBackgroundColor: bg0,
-      fontFamily: 'Rajdhani',
+      textTheme: base.textTheme.apply(fontFamily: 'Rajdhani'),
       colorScheme: const ColorScheme.dark(
         primary: neon,
         secondary: pink,
@@ -56,7 +56,7 @@ class AppTheme {
 
   static List<BoxShadow> glow(Color color, {double blur = 22}) => [
         BoxShadow(
-          color: color.withOpacity(0.45),
+          color: color.withValues(alpha: 0.45),
           blurRadius: blur,
           spreadRadius: -4,
           offset: const Offset(0, 6),

@@ -43,7 +43,7 @@ class _HomeShellState extends State<HomeShell> {
           currentIndex: _index,
           onTap: (i) => setState(() => _index = i),
           type: BottomNavigationBarType.fixed,
-          backgroundColor: AppTheme.bg1.withOpacity(0.96),
+          backgroundColor: AppTheme.bg1.withValues(alpha: 0.96),
           elevation: 0,
           selectedItemColor: AppTheme.neon,
           unselectedItemColor: AppTheme.textMid,

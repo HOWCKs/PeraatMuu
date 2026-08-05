@@ -105,7 +105,7 @@ class ConsoleDetailScreen extends StatelessWidget {
                         Icon(
                           Icons.folder_off_rounded,
                           size: 44,
-                          color: AppTheme.textMid.withOpacity(0.6),
+                          color: AppTheme.textMid.withValues(alpha: 0.6),
                         ),
                         const SizedBox(height: 10),
                         const Text(
@@ -154,7 +154,7 @@ class ConsoleDetailScreen extends StatelessWidget {
         title: const Text('Remover da biblioteca?'),
         content: Text(
           'O arquivo da ROM não será apagado do dispositivo.',
-          style: TextStyle(color: AppTheme.textMid.withOpacity(0.95)),
+          style: TextStyle(color: AppTheme.textMid.withValues(alpha: 0.95)),
         ),
         actions: [
           TextButton(
@@ -207,7 +207,7 @@ class _Header extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.32),
+                      color: Colors.black.withValues(alpha: 0.32),
                       shape: BoxShape.circle,
                       boxShadow: AppTheme.glow(system.gradient.first),
                     ),
@@ -225,7 +225,7 @@ class _Header extends StatelessWidget {
                         Text(
                           '${system.maker} • ${system.year}',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.8),
+                            color: Colors.white.withValues(alpha: 0.8),
                             fontSize: 13,
                           ),
                         ),
@@ -313,9 +313,9 @@ class _NotesCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppTheme.yellow.withOpacity(0.08),
+        color: AppTheme.yellow.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.yellow.withOpacity(0.35)),
+        border: Border.all(color: AppTheme.yellow.withValues(alpha: 0.35)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

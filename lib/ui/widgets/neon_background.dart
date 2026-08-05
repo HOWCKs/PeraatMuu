@@ -62,7 +62,7 @@ class _GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = AppTheme.neon.withOpacity(0.055)
+      ..color = AppTheme.neon.withValues(alpha: 0.055)
       ..strokeWidth = 1;
 
     final horizon = size.height * 0.60;
@@ -91,8 +91,8 @@ class _GridPainter extends CustomPainter {
     final glowPaint = Paint()
       ..shader = RadialGradient(
         colors: [
-          AppTheme.purple.withOpacity(0.16),
-          AppTheme.purple.withOpacity(0.0),
+          AppTheme.purple.withValues(alpha: 0.16),
+          AppTheme.purple.withValues(alpha: 0.0),
         ],
       ).createShader(Rect.fromCircle(
         center: Offset(vanishingX, horizon),
@@ -118,9 +118,9 @@ class _ScanPainter extends CustomPainter {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          AppTheme.neon.withOpacity(0.0),
-          AppTheme.neon.withOpacity(0.05),
-          AppTheme.neon.withOpacity(0.0),
+          AppTheme.neon.withValues(alpha: 0.0),
+          AppTheme.neon.withValues(alpha: 0.05),
+          AppTheme.neon.withValues(alpha: 0.0),
         ],
       ).createShader(Rect.fromLTWH(0, y - 60, size.width, 120));
     canvas.drawRect(Rect.fromLTWH(0, y - 60, size.width, 120), paint);

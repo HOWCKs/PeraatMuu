@@ -184,7 +184,7 @@ class _LibraryEmpty extends StatelessWidget {
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AppTheme.purple.withOpacity(0.10),
+                color: AppTheme.purple.withValues(alpha: 0.10),
               ),
               child: const Icon(
                 Icons.videogame_asset_off_rounded,

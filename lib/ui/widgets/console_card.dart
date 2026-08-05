@@ -40,7 +40,7 @@ class ConsoleCard extends StatelessWidget {
             border: Border.all(
               color: disabled
                   ? const Color(0xFF2A2A3A)
-                  : system.gradient.first.withOpacity(0.6),
+                  : system.gradient.first.withValues(alpha: 0.6),
             ),
             boxShadow: disabled ? null : AppTheme.glow(system.gradient.first),
           ),
@@ -55,7 +55,7 @@ class ConsoleCard extends StatelessWidget {
                     Container(
                       padding: EdgeInsets.all(large ? 12 : 10),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.30),
+                        color: Colors.black.withValues(alpha: 0.30),
                         shape: BoxShape.circle,
                         boxShadow: disabled
                             ? null
@@ -84,7 +84,7 @@ class ConsoleCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(disabled ? 0.35 : 0.75),
+                    color: Colors.white.withValues(alpha: disabled ? 0.35 : 0.75),
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -96,7 +96,7 @@ class ConsoleCard extends StatelessWidget {
                       Icon(
                         Icons.memory_rounded,
                         size: 12,
-                        color: Colors.white.withOpacity(0.6),
+                        color: Colors.white.withValues(alpha: 0.6),
                       ),
                       const SizedBox(width: 4),
                       Expanded(
@@ -105,7 +105,7 @@ class ConsoleCard extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.6),
+                            color: Colors.white.withValues(alpha: 0.6),
                             fontSize: 11,
                           ),
                         ),
