@@ -2,6 +2,29 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [1.2.0] - 2026-08-05
+
+### Adicionado
+- **Controles totalmente personalizáveis:** no menu ≡ do jogo > Controles,
+  cada botão pode ser movido (arrastar), redimensionado (slider) e ter o
+  ícone trocado — presets de texto ou **imagem importada da memória**
+  (PNG/JPG). Layout salvo automaticamente.
+- **Acelerar velocidade até 5×** (fast-forward, ideal para pular cutscenes
+  e intros) — áudio é pausado durante a aceleração.
+- **Modos de tela:** ajustar (proporção), preencher (tela toda), recortar
+  (preencher mantendo proporção) e preciso (escala inteira por pixels).
+- **Ajustes de cor:** brilho, contraste e saturação via shader nativo.
+- **Cheats:** adicione códigos por jogo (GameShark GB, Pro Action Replay
+  SNES, CodeBreaker GBA ou "0xEND=0xVAL" bruto), ative/desative e remova.
+  Aplicados na RAM emulada a cada quadro.
+- **Menu do jogo no visual PeraatMuu** (antes era o diálogo padrão branco).
+- **Feedback tátil** ao pressionar botões (motor de vibração VIRTUAL_KEY).
+- **Modo "Reduzir animações"** (ligado por padrão em Ajustes > Desempenho):
+  desliga varredura animada e tilt 3D — navegação muito mais fluida.
+
+### Alterado
+- Interface sem emojis — só glifos/ícones consistentes com o tema.
+
 ## [1.1.1] - 2026-08-05
 
 ### Corrigido
@@ -71,6 +94,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
   releases automáticas em tags `v*`.
 - Guia completo de uso via Termux (docs/TERMUX.md).
 
+[1.2.0]: https://github.com/HOWCKs/PeraatMuu/releases/tag/v1.2.0
 [1.1.1]: https://github.com/HOWCKs/PeraatMuu/releases/tag/v1.1.1
 [1.1.0]: https://github.com/HOWCKs/PeraatMuu/releases/tag/v1.1.0
 [1.0.1]: https://github.com/HOWCKs/PeraatMuu/releases/tag/v1.0.1

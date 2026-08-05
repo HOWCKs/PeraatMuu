@@ -1,24 +1,34 @@
 package com.peraatmuu.app.emulator
 
 import android.app.Activity
-import android.app.AlertDialog
+import android.app.Dialog
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.opengl.GLSurfaceView
 import android.os.Bundle
+import android.text.InputType
+import android.view.Gravity
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.SeekBar
+import android.widget.TextView
 import android.widget.Toast
 import java.io.File
 import kotlin.math.abs
 
 /**
- * Tela de emulação real: núcleo libretro + OpenGL + áudio + controles
- * na tela e suporte a gamepads físicos (Bluetooth/USB).
+ * Tela de emulação: núcleo libretro + OpenGL + áudio + controles
+ * personalizáveis + fast-forward + cheats + ajustes de vídeo,
+ * tudo com o visual neon do app.
  */
 class GameActivity : Activity() {
 
@@ -26,6 +36,7 @@ class GameActivity : Activity() {
         private const val EXTRA_CORE = "corePath"
         private const val EXTRA_ROM = "romPath"
         private const val EXTRA_SYSTEM = "systemId"
+        private const val REQ_PICK_BUTTON_IMAGE = 71
 
         fun createIntent(context: Context, corePath: String, romPath: String, systemId: String): Intent =
             Intent(context, GameActivity::class.java).apply {
@@ -33,6 +44,13 @@ class GameActivity : Activity() {
                 putExtra(EXTRA_ROM, romPath)
                 putExtra(EXTRA_SYSTEM, systemId)
             }
+
+        private val BG = Color.parseColor("#12121F")
+        private val CARD = Color.parseColor("#1B1B2E")
+        private val LINE = Color.parseColor("#2E2E4D")
+        private val NEON = Color.parseColor("#00F5D4")
+        private val TXT = Color.parseColor("#F4F4FA")
+        private val TXT_MID = Color.parseColor("#9FA3C0")
     }
 
     private lateinit var glView: GLSurfaceView
@@ -50,6 +68,9 @@ class GameActivity : Activity() {
     private var physicalMask = 0
     private var dead = false
 
+    private var editingButton: ControlsOverlayView.ButtonCfg? = null
+    private val cheats = mutableListOf<CheatEngine.Cheat>()
+
     private val keyToButton = mapOf(
         KeyEvent.KEYCODE_BUTTON_B to ControlsOverlayView.BTN_B,
         KeyEvent.KEYCODE_BUTTON_Y to ControlsOverlayView.BTN_Y,
@@ -63,7 +84,6 @@ class GameActivity : Activity() {
         KeyEvent.KEYCODE_BUTTON_X to ControlsOverlayView.BTN_X,
         KeyEvent.KEYCODE_BUTTON_L1 to ControlsOverlayView.BTN_L,
         KeyEvent.KEYCODE_BUTTON_R1 to ControlsOverlayView.BTN_R,
-        // Teclado (mapa clássico: Z=B, X=A, A=Y, S=X, Enter=Start, Espaço=Select)
         KeyEvent.KEYCODE_Z to ControlsOverlayView.BTN_B,
         KeyEvent.KEYCODE_X to ControlsOverlayView.BTN_A,
         KeyEvent.KEYCODE_A to ControlsOverlayView.BTN_Y,
@@ -72,11 +92,16 @@ class GameActivity : Activity() {
         KeyEvent.KEYCODE_SPACE to ControlsOverlayView.BTN_SELECT,
     )
 
+    // ------------------------------------------------------------------
+    // Ciclo de vida
+    // ------------------------------------------------------------------
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         applyImmersive()
+        EmuSettings.init(this)
 
         corePath = intent.getStringExtra(EXTRA_CORE).orEmpty()
         romPath = intent.getStringExtra(EXTRA_ROM).orEmpty()
@@ -103,13 +128,14 @@ class GameActivity : Activity() {
             RetroBridge.nativeLoadRam(sramFile.absolutePath)
         }
 
+        renderer = EmulatorRenderer()
+        applyVisualSettings()
+
         glView = GLSurfaceView(this).apply {
             setEGLContextClientVersion(2)
-            renderer = EmulatorRenderer()
             setRenderer(renderer)
             renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
         }
-        this.renderer = renderer
 
         controls = ControlsOverlayView(this).apply {
             onButtonsChanged = { mask ->
@@ -117,6 +143,7 @@ class GameActivity : Activity() {
                 pushMask()
             }
             onMenuPressed = { showGameMenu() }
+            onButtonEditRequested = { showButtonEditor(it) }
         }
 
         val root = FrameLayout(this).apply {
@@ -137,8 +164,43 @@ class GameActivity : Activity() {
         }
         setContentView(root)
 
-        Toast.makeText(this, romName, Toast.LENGTH_SHORT).show()
+        // Cheats salvos deste jogo
+        cheats.clear()
+        cheats.addAll(CheatEngine.load(romPath))
+        applyCheats()
+
+        // Velocidade persistida
+        RetroBridge.nativeSetSpeedFactor(EmuSettings.speedFactor)
+
+        toast(romName)
         RetroBridge.nativeStart()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        applyImmersive()
+        if (!dead) {
+            if (::glView.isInitialized) glView.onResume()
+            RetroBridge.nativeStart()
+            if (EmuSettings.speedFactor <= 1f) startAudio()
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (::glView.isInitialized) glView.onPause()
+        stopAudio()
+        RetroBridge.nativeSetButtons(0)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (dead) return
+        RetroBridge.nativeStop()
+        if (::sramFile.isInitialized) {
+            RetroBridge.nativeSaveRam(sramFile.absolutePath)
+        }
+        RetroBridge.nativeUnload()
     }
 
     private fun applyImmersive() {
@@ -163,69 +225,526 @@ class GameActivity : Activity() {
         audio = null
     }
 
-    override fun onResume() {
-        super.onResume()
-        applyImmersive()
-        if (!dead) {
-            if (::glView.isInitialized) glView.onResume()
-            RetroBridge.nativeStart()
-            startAudio()
-        }
-    }
-
-    override fun onPause() {
-        super.onPause()
-        if (::glView.isInitialized) glView.onPause()
-        stopAudio()
-        RetroBridge.nativeSetButtons(0)
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        if (dead) return
-        RetroBridge.nativeStop()
-        if (::sramFile.isInitialized) {
-            RetroBridge.nativeSaveRam(sramFile.absolutePath)
-        }
-        RetroBridge.nativeUnload()
+    private fun applyVisualSettings() {
+        renderer.scaleMode = EmuSettings.scaleMode
+        renderer.brightness = EmuSettings.brightness
+        renderer.contrast = EmuSettings.contrast
+        renderer.saturation = EmuSettings.saturation
     }
 
     // ------------------------------------------------------------------
-    // Menu do jogo
+    // Menu do jogo (visual PeraatMuu)
     // ------------------------------------------------------------------
+
+    private fun neonDialog(title: String): Pair<Dialog, LinearLayout> {
+        val dialog = Dialog(this)
+        val scroll = ScrollView(this)
+        val column = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(14), dp(18), dp(18))
+        }
+        val titleView = TextView(this).apply {
+            text = title
+            setTextColor(NEON)
+            textSize = 15f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            letterSpacing = 0.15f
+        }
+        column.addView(titleView)
+        column.addView(divider())
+        scroll.addView(column)
+        dialog.setContentView(
+            scroll,
+            FrameLayout.LayoutParams(
+                (resources.displayMetrics.heightPixels * 0.72f).toInt().coerceAtMost(dp(360)),
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+            ),
+        )
+        dialog.window?.setBackgroundDrawable(
+            GradientDrawable().apply {
+                cornerRadius = dp(18).toFloat()
+                setColor(BG)
+                setStroke(dp(1), LINE)
+            },
+        )
+        dialog.setOnDismissListener { applyImmersive() }
+        return dialog to column
+    }
+
+    private fun divider(): View = View(this).apply {
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(1),
+        ).apply { setMargins(0, dp(10), 0, dp(6)) }
+        setBackgroundColor(LINE)
+    }
+
+    data class MenuItem(
+        val glyph: String,
+        val label: String,
+        val detail: String = "",
+        val onTap: () -> Unit,
+    )
+
+    private fun LinearLayout.addMenuRows(dialog: Dialog, items: List<MenuItem>) {
+        for (item in items) {
+            val row = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, dp(10), 0, dp(10))
+                setOnClickListener { item.onTap(); if (dialog.isShowing) dialog.dismiss() }
+            }
+            val icon = TextView(context).apply {
+                text = item.glyph
+                setTextColor(NEON)
+                textSize = 16f
+                setPadding(0, 0, dp(14), 0)
+            }
+            val labelCol = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            val label = TextView(context).apply {
+                text = item.label
+                setTextColor(TXT)
+                textSize = 14f
+            }
+            labelCol.addView(label)
+            if (item.detail.isNotEmpty()) {
+                labelCol.addView(
+                    TextView(context).apply {
+                        text = item.detail
+                        setTextColor(TXT_MID)
+                        textSize = 11f
+                    },
+                )
+            }
+            row.addView(icon)
+            row.addView(labelCol)
+            addView(row)
+            addView(
+                View(context).apply {
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, 1,
+                    ).apply { setMargins(dp(28), 0, 0, 0) }
+                    setBackgroundColor(LINE)
+                },
+            )
+        }
+    }
 
     private fun showGameMenu() {
-        val items = arrayOf(
-            "Continuar",
-            "Salvar estado",
-            "Carregar estado",
-            "Reiniciar jogo",
-            "Sair",
-        )
-        AlertDialog.Builder(this)
-            .setTitle("PeraatMuu")
-            .setItems(items) { dialog, which ->
-                when (which) {
-                    1 -> toast(
+        val speed = EmuSettings.speedFactor
+        val (dialog, column) = neonDialog("PERAATMUU")
+        column.addMenuRows(
+            dialog,
+            listOf(
+                MenuItem("▶", "Continuar", "voltar ao jogo") {},
+                MenuItem("≫", "Acelerar velocidade", "atual: ${speedLabel(speed)}") {
+                    cycleSpeed()
+                },
+                MenuItem("⛶", "Modo de tela", "atual: ${EmuSettings.scaleModeLabel()}") {
+                    cycleScaleMode()
+                },
+                MenuItem("◐", "Ajustar cores", "brilho, contraste, saturação") {
+                    showColorsDialog()
+                },
+                MenuItem("✎", "Controles", "mover, redimensionar, trocar ícones") {
+                    toggleControlEdit()
+                },
+                MenuItem("</>", "Cheats", "${cheats.count { it.enabled }} ativo(s)") {
+                    showCheatsDialog()
+                },
+                MenuItem("↓", "Salvar estado", "") {
+                    toast(
                         if (RetroBridge.nativeSaveState(stateFile.absolutePath)) "Estado salvo"
                         else "Não foi possível salvar"
                     )
-                    2 -> toast(
+                },
+                MenuItem("↑", "Carregar estado", "") {
+                    toast(
                         when {
                             !stateFile.exists() -> "Nenhum estado salvo ainda"
                             RetroBridge.nativeLoadState(stateFile.absolutePath) -> "Estado carregado"
                             else -> "Falha ao carregar o estado"
                         }
                     )
-                    3 -> RetroBridge.nativeReset()
-                    4 -> finish()
-                    else -> Unit
-                }
-                dialog.dismiss()
-            }
-            .setOnDismissListener { applyImmersive() }
-            .show()
+                },
+                MenuItem("↻", "Reiniciar jogo", "") {
+                    RetroBridge.nativeReset()
+                },
+                MenuItem("✕", "Sair", "") {
+                    finish()
+                },
+            ),
+        )
+        dialog.show()
     }
+
+    // ------------------------------------------------------------------
+    // Velocidade
+    // ------------------------------------------------------------------
+
+    private fun speedLabel(f: Float): String = when {
+        f >= 5 -> "5× (máximo)"
+        f >= 4 -> "4×"
+        f >= 3 -> "3×"
+        f >= 2 -> "2× — bom pra pular cutscenes"
+        else -> "normal (1×)"
+    }
+
+    private fun cycleSpeed() {
+        val current = EmuSettings.speedFactor
+        val next = when {
+            current >= 5f -> 1f
+            current >= 4f -> 5f
+            current >= 3f -> 4f
+            current >= 2f -> 3f
+            else -> 2f
+        }
+        setSpeed(next)
+    }
+
+    private fun setSpeed(f: Float) {
+        EmuSettings.speedFactor = f
+        RetroBridge.nativeSetSpeedFactor(f)
+        if (f > 1f) stopAudio() else startAudio()
+        toast("Velocidade: ${speedLabel(f)}")
+    }
+
+    // ------------------------------------------------------------------
+    // Tela e cores
+    // ------------------------------------------------------------------
+
+    private fun cycleScaleMode() {
+        val next = (EmuSettings.scaleMode + 1) % 4
+        EmuSettings.scaleMode = next
+        renderer.scaleMode = next
+        toast("Tela: ${EmuSettings.scaleModeLabel(next)}")
+    }
+
+    private fun showColorsDialog() {
+        val (dialog, column) = neonDialog("AJUSTAR CORES")
+        column.addSliderRow("Brilho", EmuSettings.brightness, -0.5f, 0.5f) { v ->
+            EmuSettings.brightness = v; renderer.brightness = v
+        }
+        column.addSliderRow("Contraste", EmuSettings.contrast, 0.5f, 2.0f) { v ->
+            EmuSettings.contrast = v; renderer.contrast = v
+        }
+        column.addSliderRow("Saturação", EmuSettings.saturation, 0f, 2.0f) { v ->
+            EmuSettings.saturation = v; renderer.saturation = v
+        }
+        column.addMenuRows(
+            dialog,
+            listOf(
+                MenuItem("↺", "Restaurar padrão", "") {
+                    EmuSettings.brightness = 0f
+                    EmuSettings.contrast = 1f
+                    EmuSettings.saturation = 1f
+                    applyVisualSettings()
+                    toast("Cores restauradas")
+                },
+            ),
+        )
+        dialog.show()
+    }
+
+    private fun LinearLayout.addSliderRow(
+        label: String,
+        initial: Float,
+        min: Float,
+        max: Float,
+        onChange: (Float) -> Unit,
+    ) {
+        addView(
+            TextView(context).apply {
+                text = label
+                setTextColor(TXT)
+                textSize = 13f
+                setPadding(0, dp(10), 0, 0)
+            },
+        )
+        addView(
+            SeekBar(context).apply {
+                this.max = 100
+                progress = (((initial - min) / (max - min)) * 100).toInt().coerceIn(0, 100)
+                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(sb: SeekBar?, p: Int, fromUser: Boolean) {
+                        if (fromUser) onChange(min + (p / 100f) * (max - min))
+                    }
+                    override fun onStartTrackingTouch(sb: SeekBar?) {}
+                    override fun onStopTrackingTouch(sb: SeekBar?) {}
+                })
+            },
+        )
+    }
+
+    // ------------------------------------------------------------------
+    // Controles personalizáveis
+    // ------------------------------------------------------------------
+
+    private fun toggleControlEdit() {
+        controls.editMode = !controls.editMode
+        if (controls.editMode) {
+            toast("Arraste os botões. Toque para personalizar. Abra o menu novamente para concluir.")
+        } else {
+            controls.saveLayout()
+            toast("Layout dos controles salvo")
+        }
+    }
+
+    private fun showButtonEditor(cfg: ControlsOverlayView.ButtonCfg) {
+        editingButton = cfg
+        val (dialog, column) = neonDialog("BOTÃO ${nameOf(cfg.id)}")
+
+        column.addView(
+            TextView(this).apply {
+                text = "Tamanho"
+                setTextColor(TXT)
+                textSize = 13f
+                setPadding(0, dp(6), 0, 0)
+            },
+        )
+        val sizeBar = SeekBar(this).apply {
+            max = 100
+            progress = ((cfg.size / 0.34f) * 100).toInt().coerceIn(10, 100)
+        }
+        sizeBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, p: Int, fromUser: Boolean) {
+                if (!fromUser) return
+                val newSize = 0.10f + (0.28f * p / 100f)
+                cfg.size = newSize
+                controls.updateButton(cfg)
+            }
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {}
+        })
+        column.addView(sizeBar)
+
+        column.addView(
+            TextView(this).apply {
+                text = "Ícone (texto)"
+                setTextColor(TXT)
+                textSize = 13f
+                setPadding(0, dp(8), 0, dp(4))
+            },
+        )
+        val grid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        var row: LinearLayout? = null
+        ControlsOverlayView.PRESET_LABELS.forEachIndexed { i, label ->
+            if (i % 6 == 0) {
+                row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                grid.addView(row)
+            }
+            val chip = TextView(this).apply {
+                text = label
+                setTextColor(if (cfg.image.isBlank() && cfg.label == label) NEON else TXT_MID)
+                textSize = 13f
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(0, dp(38), 1f).apply {
+                    setMargins(dp(2), dp(2), dp(2), dp(2))
+                }
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(8).toFloat()
+                    setColor(CARD)
+                    setStroke(dp(1), if (cfg.image.isBlank() && cfg.label == label) NEON else LINE)
+                }
+                setOnClickListener {
+                    cfg.label = label
+                    cfg.image = ""
+                    controls.updateButton(cfg)
+                    dialog.dismiss()
+                    toast("Ícone alterado para \"$label\"")
+                }
+            }
+            row?.addView(chip)
+        }
+        column.addView(grid)
+
+        column.addView(divider())
+        column.addMenuRows(
+            dialog,
+            listOf(
+                MenuItem("▣", "Importar imagem da memória", "PNG/JPG deixa o botão com a sua arte") {
+                    pickImageForButton(cfg)
+                },
+                MenuItem("⟲", "Remover imagem personalizada", "") {
+                    cfg.image = ""
+                    controls.updateButton(cfg)
+                    toast("Imagem removida")
+                },
+                MenuItem("↺", "Restaurar layout padrão", "reposiciona e rezeta todos os botões") {
+                    controls.resetLayout()
+                    toast("Layout restaurado")
+                },
+            ),
+        )
+        dialog.show()
+    }
+
+    private fun nameOf(id: Int): String = when (id) {
+        ControlsOverlayView.BTN_A -> "A"
+        ControlsOverlayView.BTN_B -> "B"
+        ControlsOverlayView.BTN_X -> "X"
+        ControlsOverlayView.BTN_Y -> "Y"
+        ControlsOverlayView.BTN_L -> "L"
+        ControlsOverlayView.BTN_R -> "R"
+        ControlsOverlayView.BTN_SELECT -> "SELECT"
+        ControlsOverlayView.BTN_START -> "START"
+        ControlsOverlayView.BTN_UP -> "↑"
+        ControlsOverlayView.BTN_DOWN -> "↓"
+        ControlsOverlayView.BTN_LEFT -> "←"
+        ControlsOverlayView.BTN_RIGHT -> "→"
+        else -> "?"
+    }
+
+    private fun pickImageForButton(cfg: ControlsOverlayView.ButtonCfg) {
+        editingButton = cfg
+        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+            type = "image/*"
+            addCategory(Intent.CATEGORY_OPENABLE)
+        }
+        startActivityForResult(intent, REQ_PICK_BUTTON_IMAGE)
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQ_PICK_BUTTON_IMAGE || resultCode != RESULT_OK || data?.data == null) return
+        val cfg = editingButton ?: return
+        try {
+            val dir = File(filesDir, "button_icons").apply { mkdirs() }
+            val dest = File(dir, "btn_${cfg.id}.png")
+            contentResolver.openInputStream(data.data!!).use { input ->
+                if (input == null) throw IllegalStateException("sem acesso à imagem")
+                dest.outputStream().use { output -> input.copyTo(output) }
+            }
+            cfg.image = dest.absolutePath
+            controls.updateButton(cfg)
+            toast("Imagem aplicada ao botão ${nameOf(cfg.id)}")
+        } catch (e: Exception) {
+            toast("Não consegui usar essa imagem: ${e.message}")
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Cheats
+    // ------------------------------------------------------------------
+
+    private fun applyCheats() {
+        val pokes = CheatEngine.decodeActive(cheats, systemId)
+        RetroBridge.nativeSetCheats(pokes)
+        CheatEngine.save(romPath, cheats)
+    }
+
+    private fun showCheatsDialog() {
+        val (dialog, column) = neonDialog("CHEATS (${cheats.size})")
+
+        if (cheats.isEmpty()) {
+            column.addView(
+                TextView(this).apply {
+                    text = "Nenhum cheat neste jogo ainda."
+                    setTextColor(TXT_MID)
+                    textSize = 13f
+                    setPadding(0, dp(4), 0, dp(10))
+                },
+            )
+        } else {
+            cheats.forEach { cheat ->
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(0, dp(6), 0, dp(6))
+                }
+                val box = TextView(this).apply {
+                    text = if (cheat.enabled) "☑" else "☐"
+                    setTextColor(NEON)
+                    textSize = 16f
+                    setPadding(0, 0, dp(10), 0)
+                    setOnClickListener {
+                        cheat.enabled = !cheat.enabled
+                        applyCheats()
+                        dialog.dismiss()
+                        showCheatsDialog()
+                    }
+                }
+                val label = TextView(this).apply {
+                    text = cheat.name
+                    setTextColor(TXT)
+                    textSize = 13f
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                }
+                val del = TextView(this).apply {
+                    text = "✕"
+                    setTextColor(TXT_MID)
+                    textSize = 14f
+                    setPadding(dp(8), 0, 0, 0)
+                    setOnClickListener {
+                        cheats.remove(cheat)
+                        applyCheats()
+                        toast("Cheat removido")
+                        dialog.dismiss()
+                        showCheatsDialog()
+                    }
+                }
+                row.addView(box)
+                row.addView(label)
+                row.addView(del)
+                column.addView(row)
+            }
+        }
+
+        column.addView(divider())
+        column.addView(
+            TextView(this).apply {
+                text = CheatEngine.helpText
+                setTextColor(TXT_MID)
+                textSize = 11f
+                setPadding(0, dp(4), 0, dp(8))
+            },
+        )
+
+        val nameField = EditText(this).apply {
+            hint = "Nome do cheat (ex.: Vidas infinitas)"
+            setHintTextColor(TXT_MID)
+            setTextColor(TXT)
+            textSize = 13f
+        }
+        val codeField = EditText(this).apply {
+            hint = "Código (ex.: 01FF9BD1)"
+            setHintTextColor(TXT_MID)
+            setTextColor(TXT)
+            textSize = 13f
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        }
+        column.addView(nameField)
+        column.addView(codeField)
+        column.addMenuRows(
+            dialog,
+            listOf(
+                MenuItem("＋", "Adicionar cheat", "") {
+                    val code = codeField.text.toString().trim()
+                    val name = nameField.text.toString().trim()
+                        .ifEmpty { "Cheat ${cheats.size + 1}" }
+                    if (code.isBlank()) {
+                        toast("Digite o código do cheat")
+                    } else if (CheatEngine.decode(code, systemId) == null) {
+                        toast("Formato não reconhecido para este console")
+                    } else {
+                        cheats.add(CheatEngine.Cheat(name, code, true))
+                        applyCheats()
+                        toast("Cheat \"$name\" ativado")
+                    }
+                },
+            ),
+        )
+        dialog.show()
+    }
+
+    // ------------------------------------------------------------------
+    // Utilidades
+    // ------------------------------------------------------------------
+
+    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
     private fun toast(message: String) {
         runOnUiThread { Toast.makeText(this, message, Toast.LENGTH_SHORT).show() }
@@ -241,6 +760,7 @@ class GameActivity : Activity() {
     // ------------------------------------------------------------------
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (controls.editMode) return super.dispatchKeyEvent(event)
         if (event.keyCode == KeyEvent.KEYCODE_BACK &&
             event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0
         ) {
@@ -267,6 +787,7 @@ class GameActivity : Activity() {
     }
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        if (controls.editMode) return super.dispatchGenericMotionEvent(event)
         if (event.source and InputDevice.SOURCE_JOYSTICK == InputDevice.SOURCE_JOYSTICK) {
             val dpadBits = (1 shl ControlsOverlayView.BTN_UP) or
                 (1 shl ControlsOverlayView.BTN_DOWN) or

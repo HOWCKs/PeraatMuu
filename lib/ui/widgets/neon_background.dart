@@ -1,10 +1,14 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../state/app_settings.dart';
 import '../../theme/app_theme.dart';
 
-/// Fundo gamer: grid em perspectiva (synthwave) com varredura luminosa animada.
+/// Fundo gamer: grid em perspectiva (synthwave). A varredura luminosa animada
+/// só roda quando "efeitos reduzidos" está DESLIGADO nos Ajustes —
+/// no modo leve o fundo é pintado uma única vez (navegação muito mais fluida).
 class NeonBackground extends StatefulWidget {
   final Widget child;
 
@@ -35,23 +39,47 @@ class _NeonBackgroundState extends State<NeonBackground>
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [AppTheme.bg1, AppTheme.bg0],
-        ),
-      ),
-      child: CustomPaint(
-        painter: _GridPainter(),
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) => CustomPaint(
-            painter: _ScanPainter(_controller.value),
-            child: child,
+    final reduced = context.watch<AppSettings>().reducedEffects;
+
+    if (reduced) {
+      _controller.stop();
+      return RepaintBoundary(
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [AppTheme.bg1, AppTheme.bg0],
+            ),
           ),
-          child: widget.child,
+          child: CustomPaint(
+            painter: _GridPainter(),
+            child: widget.child,
+          ),
+        ),
+      );
+    }
+
+    _controller.repeat();
+    return RepaintBoundary(
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [AppTheme.bg1, AppTheme.bg0],
+          ),
+        ),
+        child: CustomPaint(
+          painter: _GridPainter(),
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) => CustomPaint(
+              painter: _ScanPainter(_controller.value),
+              child: child,
+            ),
+            child: widget.child,
+          ),
         ),
       ),
     );
@@ -67,7 +95,6 @@ class _GridPainter extends CustomPainter {
 
     final horizon = size.height * 0.60;
 
-    // Linhas verticais convergindo ao ponto de fuga
     final vanishingX = size.width / 2;
     const count = 14;
     for (var i = -count; i <= count; i++) {
@@ -79,7 +106,6 @@ class _GridPainter extends CustomPainter {
       );
     }
 
-    // Linhas horizontais com espaçamento parabólico (profundidade)
     for (var i = 0; i < 12; i++) {
       final t = i / 12;
       final depth = math.pow(t, 1.8).toDouble();
@@ -87,7 +113,6 @@ class _GridPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
     }
 
-    // Brilho radial no horizonte
     final glowPaint = Paint()
       ..shader = RadialGradient(
         colors: [

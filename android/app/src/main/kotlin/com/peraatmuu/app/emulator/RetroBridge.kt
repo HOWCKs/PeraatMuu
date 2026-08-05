@@ -31,6 +31,9 @@ object RetroBridge {
     @JvmStatic external fun nativeSaveRam(path: String): Boolean
     @JvmStatic external fun nativeLoadRam(path: String): Boolean
     @JvmStatic external fun nativeShouldQuit(): Boolean
+    @JvmStatic external fun nativeSetSpeedFactor(factor: Float)
+    @JvmStatic external fun nativeGetSpeedFactor(): Float
+    @JvmStatic external fun nativeSetCheats(entries: IntArray)
 
     @JvmStatic
     fun init(corePath: String, sysDir: String, saveDir: String) {

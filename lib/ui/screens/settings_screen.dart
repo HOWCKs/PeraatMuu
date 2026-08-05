@@ -6,6 +6,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/console_system.dart';
+import '../../state/app_settings.dart';
 import '../../state/core_controller.dart';
 import '../../state/library_controller.dart';
 import '../../theme/app_theme.dart';
@@ -20,6 +21,7 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final library = context.watch<LibraryController>();
     final cores = context.watch<CoreController>();
+    final settings = context.watch<AppSettings>();
 
     return ListView(
       physics: const BouncingScrollPhysics(),
@@ -171,7 +173,7 @@ class SettingsScreen extends StatelessWidget {
               _InfoRow(
                 icon: Icons.touch_app_rounded,
                 text:
-                    'Controles virtuais na tela com multitoque (toque em ≡ para menu do jogo).',
+                    'No jogo, toque em ≡ e escolha "Controles" para arrastar botões, mudar tamanho e trocar ícones (até com imagem sua). Resposta tátil ativada.',
               ),
               SizedBox(height: 8),
               _InfoRow(
@@ -184,6 +186,46 @@ class SettingsScreen extends StatelessWidget {
                 icon: Icons.save_rounded,
                 text:
                     'Salvamentos: os estados e a SRAM (save da bateria) são gravados automaticamente ao sair.',
+              ),
+            ],
+          ),
+        ),
+
+        // ---------------- Desempenho ----------------
+        const SectionHeader(title: 'Desempenho'),
+        _Card(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                activeThumbColor: AppTheme.neon,
+                activeTrackColor: AppTheme.neon.withValues(alpha: 0.35),
+                title: const Text(
+                  'Reduzir animações e efeitos',
+                  style: TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600,
+                      color: AppTheme.textHigh),
+                ),
+                subtitle: const Text(
+                  'Desliga varreduras animadas e o tilt 3D dos cards. Recomendado.',
+                  style: TextStyle(fontSize: 11.5, color: AppTheme.textMid),
+                ),
+                value: settings.reducedEffects,
+                onChanged: (v) => settings.setReducedEffects(v),
+              ),
+              const SizedBox(height: 8),
+              const _InfoRow(
+                icon: Icons.speed_rounded,
+                text:
+                    'Dentro do jogo: "Acelerar velocidade" (até 5×), ajustes de cor e escala de tela ficam no menu ≡.',
+              ),
+              const SizedBox(height: 8),
+              const _InfoRow(
+                icon: Icons.build_rounded,
+                text:
+                    'Travou com um cheat? Abra o menu ≡ > Cheats e desative — alguns códigos alteram a RAM do jogo todo quadro.',
               ),
             ],
           ),

@@ -20,12 +20,14 @@ typedef int jint;
 typedef long long jlong;
 typedef jint jsize;
 typedef double jdouble;
+typedef float jfloat;
 typedef unsigned char jboolean;
 typedef signed char jbyte;
 #define JNI_TRUE 1
 #define JNI_FALSE 0
 #define JNIEXPORT
 #define JNICALL
+#define JNI_ABORT 2
 struct JNIEnv {
     const char* GetStringUTFChars(jstring s, jboolean*) { return s->s.c_str(); }
     void ReleaseStringUTFChars(jstring, const char*) {}
@@ -33,6 +35,10 @@ struct JNIEnv {
     void SetIntArrayRegion(jintArray a, jsize start, jsize len, const jint* src) {
         std::memcpy(a->data.data() + start * 4, src, len * 4);
     }
+    jint* GetIntArrayElements(jintArray a, jboolean*) {
+        return reinterpret_cast<jint*>(a->data.data());
+    }
+    void ReleaseIntArrayElements(jintArray, jint*, jint) {}
     void* GetDirectBufferAddress(jobject buf) { return buf; }
     jlong GetDirectBufferCapacity(jobject) { return (jlong)64 * 1024 * 1024; }
     void SetByteArrayRegion(jbyteArray a, jsize start, jsize len, const jbyte* src) {

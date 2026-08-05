@@ -8,10 +8,13 @@ import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
+import kotlin.math.max
+import kotlin.math.min
 
 /**
- * Desenha o framebuffer RGBA do núcleo em uma textura OpenGL em tela cheia,
- * mantendo a proporção original (letterbox/pillarbox).
+ * Desenha o framebuffer RGBA do núcleo em uma textura OpenGL.
+ * Suporta modos de escala (ajustar/preencher/recortar/preciso) e ajustes
+ * de cor (brilho, contraste, saturação) direto no fragment shader.
  */
 class EmulatorRenderer : GLSurfaceView.Renderer {
 
@@ -23,6 +26,12 @@ class EmulatorRenderer : GLSurfaceView.Renderer {
     private var texH = 0
     private var frameBuffer: ByteBuffer? = null
     private val info = IntArray(4)
+
+    var scaleMode: Int = EmuSettings.SCALE_FIT
+        set(v) { field = v }
+    var brightness: Float = 0f
+    var contrast: Float = 1f
+    var saturation: Float = 1f
 
     private lateinit var posBuffer: FloatBuffer
     private lateinit var uvBuffer: FloatBuffer
@@ -44,8 +53,20 @@ class EmulatorRenderer : GLSurfaceView.Renderer {
             precision mediump float;
             varying vec2 vUV;
             uniform sampler2D uTex;
+            uniform float uBrightness;
+            uniform float uContrast;
+            uniform float uSaturation;
             void main() {
-                gl_FragColor = texture2D(uTex, vUV);
+                vec4 c = texture2D(uTex, vUV);
+                vec3 rgb = c.rgb;
+                // contraste em torno do cinza 0.5
+                rgb = (rgb - 0.5) * uContrast + 0.5;
+                // brilho aditivo
+                rgb = rgb + uBrightness;
+                // saturação via luminância
+                float lum = dot(rgb, vec3(0.299, 0.587, 0.114));
+                rgb = mix(vec3(lum), rgb, uSaturation);
+                gl_FragColor = vec4(clamp(rgb, 0.0, 1.0), c.a);
             }
         """
 
@@ -125,29 +146,23 @@ class EmulatorRenderer : GLSurfaceView.Renderer {
         // Proporção declarada pelo núcleo (0 = quadrada)
         val coreAspect = if (info[3] > 0) info[3] / 1000f else w.toFloat() / h.toFloat()
         val displayAspect = if (coreAspect > 0f) coreAspect else w.toFloat() / h.toFloat()
-        val surfaceAspect = surfaceW.toFloat() / surfaceH.toFloat()
-        var scaleX = 1f
-        var scaleY = 1f
-        if (surfaceAspect > displayAspect) {
-            scaleX = displayAspect / surfaceAspect
-        } else {
-            scaleY = surfaceAspect / displayAspect
-        }
 
-        val pos = floatArrayOf(
-            -scaleX, -scaleY,
-            scaleX, -scaleY,
-            -scaleX, scaleY,
-            scaleX, scaleY,
-        )
+        val layout = computeLayout(w, h, displayAspect)
+
         posBuffer.clear()
-        posBuffer.put(pos)
+        posBuffer.put(layout.pos)
         posBuffer.position(0)
+        uvBuffer.clear()
+        uvBuffer.put(layout.uv)
+        uvBuffer.position(0)
 
         GLES20.glUseProgram(program)
         val aPos = GLES20.glGetAttribLocation(program, "aPos")
         val aUV = GLES20.glGetAttribLocation(program, "aUV")
         val uTex = GLES20.glGetUniformLocation(program, "uTex")
+        GLES20.glUniform1f(GLES20.glGetUniformLocation(program, "uBrightness"), brightness)
+        GLES20.glUniform1f(GLES20.glGetUniformLocation(program, "uContrast"), contrast)
+        GLES20.glUniform1f(GLES20.glGetUniformLocation(program, "uSaturation"), saturation)
 
         GLES20.glEnableVertexAttribArray(aPos)
         GLES20.glVertexAttribPointer(aPos, 2, GLES20.GL_FLOAT, false, 0, posBuffer)
@@ -157,6 +172,70 @@ class EmulatorRenderer : GLSurfaceView.Renderer {
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
         GLES20.glDisableVertexAttribArray(aPos)
         GLES20.glDisableVertexAttribArray(aUV)
+    }
+
+    private data class Layout(val pos: FloatArray, val uv: FloatArray)
+
+    private fun computeLayout(frameW: Int, frameH: Int, displayAspect: Float): Layout {
+        val surfaceAspect = surfaceW.toFloat() / surfaceH.toFloat()
+        return when (scaleMode) {
+            EmuSettings.SCALE_FILL -> {
+                // Estica tudo
+                Layout(
+                    POS_TEMPLATE.copyOf(),
+                    UV.copyOf(),
+                )
+            }
+            EmuSettings.SCALE_CROP -> {
+                // Preenche a tela mantendo proporção (recorta o excedente)
+                var uvW = 1f
+                var uvH = 1f
+                if (surfaceAspect > displayAspect) {
+                    uvH = displayAspect / surfaceAspect
+                } else {
+                    uvW = surfaceAspect / displayAspect
+                }
+                val u0 = (1f - uvW) / 2f
+                val v0 = (1f - uvH) / 2f
+                Layout(
+                    POS_TEMPLATE.copyOf(),
+                    floatArrayOf(
+                        u0, 1f - v0,
+                        1f - u0, 1f - v0,
+                        u0, v0,
+                        1f - u0, v0,
+                    ),
+                )
+            }
+            EmuSettings.SCALE_INTEGER -> {
+                // Escala inteira em pixels exatos (nunca distorce nem serra)
+                val scaleX = max(1f, (surfaceW / frameW).toFloat())
+                val scaleY = max(1f, (surfaceH / frameH).toFloat())
+                val scale = min(scaleX, scaleY).toInt().coerceAtLeast(1)
+                val drawW = frameW * scale
+                val drawH = frameH * scale
+                val sx = drawW.toFloat() / surfaceW
+                val sy = drawH.toFloat() / surfaceH
+                Layout(
+                    floatArrayOf(-sx, -sy, sx, -sy, -sx, sy, sx, sy),
+                    UV.copyOf(),
+                )
+            }
+            else -> {
+                // FIT: mantém proporção com letterbox/pillarbox
+                var sx = 1f
+                var sy = 1f
+                if (surfaceAspect > displayAspect) {
+                    sx = displayAspect / surfaceAspect
+                } else {
+                    sy = surfaceAspect / displayAspect
+                }
+                Layout(
+                    floatArrayOf(-sx, -sy, sx, -sy, -sx, sy, sx, sy),
+                    UV.copyOf(),
+                )
+            }
+        }
     }
 
     private fun floatBufferOf(values: FloatArray): FloatBuffer =

@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../state/app_settings.dart';
 
 /// Card com efeito 3D: inclina em perspectiva conforme o arrasto do dedo
-/// e retorna suavemente ao centro ao soltar.
-class TiltCard extends StatefulWidget {
+/// e retorna suavemente ao centro ao soltar. Quando "efeitos reduzidos"
+/// está ligado, renderiza direto (zero custo de animação/perspectiva).
+class TiltCard extends StatelessWidget {
   final Widget child;
   final double maxTilt;
   final VoidCallback? onTap;
@@ -15,10 +19,33 @@ class TiltCard extends StatefulWidget {
   });
 
   @override
-  State<TiltCard> createState() => _TiltCardState();
+  Widget build(BuildContext context) {
+    final reduced = context.watch<AppSettings>().reducedEffects;
+    final content = onTap == null && reduced
+        ? child
+        : reduced
+            ? GestureDetector(onTap: onTap, child: child)
+            : _TiltInner(maxTilt: maxTilt, onTap: onTap, child: child);
+    return RepaintBoundary(child: content);
+  }
 }
 
-class _TiltCardState extends State<TiltCard> {
+class _TiltInner extends StatefulWidget {
+  final Widget child;
+  final double maxTilt;
+  final VoidCallback? onTap;
+
+  const _TiltInner({
+    required this.child,
+    required this.maxTilt,
+    this.onTap,
+  });
+
+  @override
+  State<_TiltInner> createState() => _TiltInnerState();
+}
+
+class _TiltInnerState extends State<_TiltInner> {
   double _rx = 0;
   double _ry = 0;
 
@@ -45,7 +72,10 @@ class _TiltCardState extends State<TiltCard> {
         final size = Size(constraints.maxWidth, constraints.maxHeight);
         return GestureDetector(
           onPanDown: (d) => _onPanUpdate(
-            DragUpdateDetails(globalPosition: d.globalPosition, localPosition: d.localPosition),
+            DragUpdateDetails(
+              globalPosition: d.globalPosition,
+              localPosition: d.localPosition,
+            ),
             size,
           ),
           onPanUpdate: (d) => _onPanUpdate(d, size),
@@ -56,7 +86,7 @@ class _TiltCardState extends State<TiltCard> {
             duration: const Duration(milliseconds: 140),
             curve: Curves.easeOut,
             transform: Matrix4.identity()
-              ..setEntry(3, 2, 0.0012) // perspectiva
+              ..setEntry(3, 2, 0.0012)
               ..rotateX(_rx)
               ..rotateY(_ry),
             transformAlignment: Alignment.center,

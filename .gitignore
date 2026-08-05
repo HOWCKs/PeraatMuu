@@ -29,3 +29,6 @@ tools/native_smoke/.smoke_build/
 # SO
 .DS_Store
 Thumbs.db
+
+# Smoke build intermediário
+tools/native_smoke/.smoke_build/

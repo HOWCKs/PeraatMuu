@@ -5,7 +5,7 @@ publish_to: "none"
 # MAJOR.MINOR.PATCH+buildNumber
 # - O versionCode (+N) é sobrescrito no CI pelo número da execução do GitHub Actions.
 # - Para lançar uma versão: suba este valor, faça commit e crie uma tag vX.Y.Z (ver docs/BUILD.md).
-version: 1.1.1+1
+version: 1.2.0+1
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -20,6 +20,7 @@ dependencies:
   file_picker: ^8.1.2
   package_info_plus: ^8.0.2
   archive: ^4.0.2
+  shared_preferences: ^2.3.0
 
 dev_dependencies:
   flutter_test:

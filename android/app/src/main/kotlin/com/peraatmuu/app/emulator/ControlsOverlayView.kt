@@ -2,18 +2,27 @@ package com.peraatmuu.app.emulator
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
-import android.graphics.Color
+import android.graphics.Rect
 import android.graphics.Paint
+import android.graphics.Color
 import android.graphics.RectF
 import android.util.AttributeSet
+import android.util.LruCache
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
 import kotlin.math.min
 
 /**
- * Controles virtuais na tela (estilo neon) com suporte a multitoque.
- * Botões extras de menu são tratados pelo callback dedicado.
+ * Controles virtuais na tela (estilo neon) com multitoque, feedback tátil
+ * e personalização completa: posição (arrastar), tamanho, ícone por texto
+ * ou imagem importada da memória. O layout é persistido automaticamente.
  */
 class ControlsOverlayView @JvmOverloads constructor(
     context: Context,
@@ -34,24 +43,53 @@ class ControlsOverlayView @JvmOverloads constructor(
         const val BTN_X = 9
         const val BTN_L = 10
         const val BTN_R = 11
+
+        /** Ícones de texto disponíveis como preset (sem emoji). */
+        val PRESET_LABELS = listOf(
+            "A", "B", "X", "Y", "L", "R", "L2", "R2", "A+", "B+",
+            "▲", "▼", "◀", "▶", "↻", "⊕", "★", "▮▶", "❚❚",
+            "START", "SELECT", "MENU", "TURBO", "FF", "SAVE",
+        )
     }
 
-    data class OverlayButton(
+    /** Um botão configurável: posição em fração da tela, tamanho em fração
+     * da menor dimensão, rótulo ou imagem personalizada. */
+    data class ButtonCfg(
         val id: Int,
-        val label: String,
-        val rect: RectF,
-        val circular: Boolean,
-        val accent: Int,
+        var label: String,
+        var cx: Float,      // centro X em fração da largura
+        var cy: Float,      // centro Y em fração da altura
+        var size: Float,    // largura em fração da menor dimensão
+        var circular: Boolean,
+        var accent: Int,
+        var image: String = "",  // caminho de PNG personalizado ("" = texto)
     )
 
     var onButtonsChanged: ((Int) -> Unit)? = null
     var onMenuPressed: (() -> Unit)? = null
+    var onButtonEditRequested: ((ButtonCfg) -> Unit)? = null
 
-    private val buttons = mutableListOf<OverlayButton>()
+    /** Quando true: arrastar = mover botões, toque rápido = personalizar
+     * (sem enviar entrada ao jogo). */
+    var editMode = false
+        set(value) {
+            field = value
+            invalidate()
+        }
+
+    private val buttons = mutableListOf<ButtonCfg>()
     private var menuRect = RectF()
     private val pressed = mutableSetOf<Int>()
     private var menuPressed = false
     private var lastMask = 0
+
+    // rastreio de drag no modo edição (por ponteiro)
+    private var editSelectedId: Int = -1
+    private var editTouchStartX = 0f
+    private var editTouchStartY = 0f
+    private var editMoved = false
+
+    private val imageCache = LruCache<String, Bitmap>(8)
 
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
@@ -64,97 +102,262 @@ class ControlsOverlayView @JvmOverloads constructor(
         style = Paint.Style.STROKE
         strokeWidth = 3f
     }
+    private val editStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 4f
+        color = Color.parseColor("#00F5D4")
+    }
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         textAlign = Paint.Align.CENTER
         isFakeBoldText = true
     }
+    private val hintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textAlign = Paint.Align.CENTER
+    }
+    private val imagePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val srcRect = Rect()
+    private val dstRect = Rect()
+
+    init {
+        // Listener padrão de detecção de haptics habilitado para o toque leve
+        isHapticFeedbackEnabled = true
+    }
+
+    // ---------------------------------------------------------------
+    // Layout padrão / persistência
+    // ---------------------------------------------------------------
+
+    private fun defaultLayout(): MutableList<ButtonCfg> {
+        val dAccent = Color.parseColor("#00F5D4")
+        val purple = Color.parseColor("#7B2FFF")
+        val yellow = Color.parseColor("#F9F871")
+        val pink = Color.parseColor("#FF2E88")
+        val list = mutableListOf<ButtonCfg>()
+
+        // D-pad (esquerda)
+        list += ButtonCfg(BTN_UP, "▲", 0.14f, 0.585f, 0.17f, false, dAccent)
+        list += ButtonCfg(BTN_DOWN, "▼", 0.14f, 0.895f, 0.17f, false, dAccent)
+        list += ButtonCfg(BTN_LEFT, "◀", 0.055f, 0.74f, 0.17f, false, dAccent)
+        list += ButtonCfg(BTN_RIGHT, "▶", 0.225f, 0.74f, 0.17f, false, dAccent)
+
+        // Ações (direita) em losango
+        list += ButtonCfg(BTN_X, "X", 0.86f, 0.58f, 0.17f, true, purple)
+        list += ButtonCfg(BTN_B, "B", 0.86f, 0.90f, 0.17f, true, yellow)
+        list += ButtonCfg(BTN_Y, "Y", 0.775f, 0.74f, 0.17f, true, yellow)
+        list += ButtonCfg(BTN_A, "A", 0.945f, 0.74f, 0.17f, true, pink)
+
+        // Ombros
+        list += ButtonCfg(BTN_L, "L", 0.14f, 0.085f, 0.09f, false, pink)
+        list += ButtonCfg(BTN_R, "R", 0.86f, 0.085f, 0.09f, false, pink)
+
+        // Start/Select
+        list += ButtonCfg(BTN_SELECT, "⊕", 0.43f, 0.90f, 0.085f, false, dAccent)
+        list += ButtonCfg(BTN_START, "▶|", 0.57f, 0.90f, 0.085f, false, dAccent)
+        return list
+    }
+
+    private fun loadLayout() {
+        val json = EmuSettings.controlsLayoutJson
+        if (json.isBlank()) {
+            buttons.clear()
+            buttons.addAll(defaultLayout())
+            return
+        }
+        try {
+            val arr = JSONArray(json)
+            buttons.clear()
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                buttons.add(
+                    ButtonCfg(
+                        id = o.getInt("id"),
+                        label = o.optString("label", "?"),
+                        cx = o.getDouble("cx").toFloat(),
+                        cy = o.getDouble("cy").toFloat(),
+                        size = o.getDouble("size").toFloat(),
+                        circular = o.optBoolean("circular", true),
+                        accent = o.optInt("accent", Color.parseColor("#00F5D4")),
+                        image = o.optString("image", ""),
+                    ),
+                )
+            }
+            // Garante presença de botões essenciais após migrações de versão
+            val ids = buttons.map { it.id }.toSet()
+            defaultLayout().filter { !ids.contains(it.id) }.forEach { buttons.add(it) }
+        } catch (ignored: Exception) {
+            buttons.clear()
+            buttons.addAll(defaultLayout())
+        }
+    }
+
+    fun saveLayout() {
+        val arr = JSONArray()
+        for (b in buttons) {
+            arr.put(JSONObject().apply {
+                put("id", b.id)
+                put("label", b.label)
+                put("cx", b.cx.toDouble())
+                put("cy", b.cy.toDouble())
+                put("size", b.size.toDouble())
+                put("circular", b.circular)
+                put("accent", b.accent)
+                put("image", b.image)
+            })
+        }
+        EmuSettings.controlsLayoutJson = arr.toString()
+    }
+
+    fun resetLayout() {
+        EmuSettings.controlsLayoutJson = ""
+        imageCache.evictAll()
+        loadLayout()
+        invalidate()
+    }
+
+    /** Configura um botão (chamada do diálogo de personalização). */
+    fun updateButton(cfg: ButtonCfg) {
+        val idx = buttons.indexOfFirst { it.id == cfg.id }
+        if (idx >= 0) {
+            buttons[idx] = cfg
+            if (cfg.image.isBlank()) imageCache.remove(cfg.id.toString())
+            saveLayout()
+            invalidate()
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // Render e toque
+    // ---------------------------------------------------------------
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        buttons.clear()
-        val cy = h * 0.74f
-        val btnR = h * 0.085f
-
-        // --- D-pad (esquerda) ---
-        val padCx = w * 0.14f
-        val arm = h * 0.155f
-        val dAccent = Color.parseColor("#00F5D4")
-        buttons += OverlayButton(BTN_UP, "▲", RectF(padCx - btnR, cy - arm - btnR, padCx + btnR, cy - arm + btnR), false, dAccent)
-        buttons += OverlayButton(BTN_DOWN, "▼", RectF(padCx - btnR, cy + arm - btnR, padCx + btnR, cy + arm + btnR), false, dAccent)
-        buttons += OverlayButton(BTN_LEFT, "◀", RectF(padCx - arm - btnR, cy - btnR, padCx - arm + btnR, cy + btnR), false, dAccent)
-        buttons += OverlayButton(BTN_RIGHT, "▶", RectF(padCx + arm - btnR, cy - btnR, padCx + arm + btnR, cy + btnR), false, dAccent)
-
-        // --- Botões de ação (direita) em losango ---
-        val actCx = w * 0.86f
-        val actArm = h * 0.16f
-        buttons += OverlayButton(BTN_X, "X", RectF(actCx - btnR, cy - actArm - btnR, actCx + btnR, cy - actArm + btnR), true, Color.parseColor("#7B2FFF"))
-        buttons += OverlayButton(BTN_B, "B", RectF(actCx - btnR, cy + actArm - btnR, actCx + btnR, cy + actArm + btnR), true, Color.parseColor("#F9F871"))
-        buttons += OverlayButton(BTN_Y, "Y", RectF(actCx - actArm - btnR, cy - btnR, actCx - actArm + btnR, cy + btnR), true, Color.parseColor("#F9F871"))
-        buttons += OverlayButton(BTN_A, "A", RectF(actCx + actArm - btnR, cy - btnR, actCx + actArm + btnR, cy + btnR), true, Color.parseColor("#FF2E88"))
-
-        // --- Ombros L / R (topo) ---
-        val shH = h * 0.045f
-        buttons += OverlayButton(BTN_L, "L", RectF(w * 0.03f, shH, w * 0.25f, shH + h * 0.085f), false, Color.parseColor("#FF2E88"))
-        buttons += OverlayButton(BTN_R, "R", RectF(w * 0.75f, shH, w * 0.97f, shH + h * 0.085f), false, Color.parseColor("#FF2E88"))
-
-        // --- Start / Select (centro inferior) ---
-        val ssY = h * 0.90f
-        val ssW = w * 0.075f
-        val ssH = h * 0.04f
-        buttons += OverlayButton(BTN_SELECT, "SELECT", RectF(w * 0.5f - ssW - dp(8), ssY - ssH, w * 0.5f - dp(8), ssY + ssH), false, Color.parseColor("#00F5D4"))
-        buttons += OverlayButton(BTN_START, "START", RectF(w * 0.5f + dp(8), ssY - ssH, w * 0.5f + ssW + dp(8), ssY + ssH), false, Color.parseColor("#00F5D4"))
-
-        // --- Menu (centro superior) ---
-        val mR = h * 0.05f
+        if (buttons.isEmpty()) loadLayout()
+        val mR = h * 0.055f
         menuRect = RectF(w * 0.5f - mR, h * 0.03f, w * 0.5f + mR, h * 0.03f + 2 * mR)
-
-        textPaint.textSize = min(w, h) * 0.045f
+        textPaint.textSize = min(w, h) * 0.055f
+        hintPaint.textSize = min(w, h) * 0.035f
     }
 
-    private fun dp(v: Int): Float = v * resources.displayMetrics.density
+    private fun rectOf(b: ButtonCfg): RectF {
+        val w = width.toFloat()
+        val h = height.toFloat()
+        val m = min(w, h)
+        val half = b.size * m / 2f
+        val cx = b.cx * w
+        val cy = b.cy * h
+        // L/R são retângulos largos clássicos
+        return if (!b.circular) {
+            RectF(cx - half * 1.25f, cy - half, cx + half * 1.25f, cy + half)
+        } else {
+            RectF(cx - half, cy - half, cx + half, cy + half)
+        }
+    }
+
+    private fun bitmapFor(b: ButtonCfg): Bitmap? {
+        if (b.image.isBlank()) return null
+        val key = b.id.toString()
+        return imageCache.get(key) ?: run {
+            val f = File(b.image)
+            if (!f.exists()) null else {
+                val full = BitmapFactory.decodeFile(f.absolutePath) ?: return null
+                val targetPx = (min(width, height) * b.size).toInt().coerceAtLeast(16)
+                val scaled = Bitmap.createScaledBitmap(full, targetPx, targetPx, true)
+                imageCache.put(key, scaled)
+                scaled
+            }
+        }
+    }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         for (b in buttons) {
-            val isPressed = pressed.contains(b.id)
+            val rect = rectOf(b)
+            val isPressed = pressed.contains(b.id) && !editMode
+            val selected = editMode && editSelectedId == b.id
+
             strokePaint.color = b.accent
-            strokePaint.alpha = if (isPressed) 255 else 140
+            strokePaint.alpha = if (isPressed || selected) 255 else 140
             if (isPressed) {
                 pressedPaint.color = b.accent
                 pressedPaint.alpha = 110
-                if (b.circular) {
-                    canvas.drawCircle(b.rect.centerX(), b.rect.centerY(), b.rect.width() / 2f, pressedPaint)
-                } else {
-                    canvas.drawRoundRect(b.rect, 18f, 18f, pressedPaint)
-                }
+                drawShape(canvas, b, rect, pressedPaint)
             }
-            if (b.circular) {
-                canvas.drawCircle(b.rect.centerX(), b.rect.centerY(), b.rect.width() / 2f, fillPaint)
-                canvas.drawCircle(b.rect.centerX(), b.rect.centerY(), b.rect.width() / 2f, strokePaint)
+            drawShape(canvas, b, rect, fillPaint)
+            drawShape(canvas, b, rect, strokePaint)
+
+            // imagem personalizada ou texto
+            val bmp = bitmapFor(b)
+            if (bmp != null) {
+                val pad = rect.width() * 0.12f
+                srcRect.set(0, 0, bmp.width, bmp.height)
+                dstRect.set(
+                    (rect.left + pad).toInt(), (rect.top + pad).toInt(),
+                    (rect.right - pad).toInt(), (rect.bottom - pad).toInt(),
+                )
+                imagePaint.alpha = if (isPressed) 255 else 220
+                canvas.drawBitmap(bmp, srcRect, dstRect, imagePaint)
             } else {
-                canvas.drawRoundRect(b.rect, 18f, 18f, fillPaint)
-                canvas.drawRoundRect(b.rect, 18f, 18f, strokePaint)
+                textPaint.alpha = if (isPressed) 255 else 190
+                textPaint.textSize = labelSizeFor(b)
+                val ty = rect.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f
+                canvas.drawText(b.label, rect.centerX(), ty, textPaint)
             }
-            textPaint.alpha = if (isPressed) 255 else 190
-            val ty = b.rect.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f
-            canvas.drawText(b.label, b.rect.centerX(), ty, textPaint)
+
+            if (selected) {
+                drawShape(canvas, b, rect, editStrokePaint)
+            }
         }
 
         // Botão de menu
         strokePaint.color = Color.WHITE
         strokePaint.alpha = if (menuPressed) 255 else 120
         fillPaint.alpha = if (menuPressed) 90 else 38
-        canvas.drawCircle(menuRect.centerX(), menuRect.centerY(), menuRect.width() / 2f, fillPaint)
-        canvas.drawCircle(menuRect.centerX(), menuRect.centerY(), menuRect.width() / 2f, strokePaint)
+        val mcx = menuRect.centerX()
+        val mcy = menuRect.centerY()
+        val mr = menuRect.width() / 2f
+        canvas.drawCircle(mcx, mcy, mr, fillPaint)
+        canvas.drawCircle(mcx, mcy, mr, strokePaint)
+        textPaint.textSize = mr * 0.92f
         textPaint.alpha = 200
-        val my = menuRect.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f
-        canvas.drawText("≡", menuRect.centerX(), my, textPaint)
+        val my = mcy - (textPaint.descent() + textPaint.ascent()) / 2f
+        canvas.drawText("≡", mcx, my, textPaint)
         fillPaint.alpha = 38
+
+        // Dicas do modo edição
+        if (editMode) {
+            canvas.drawColor(Color.argb(30, 0, 0, 0))
+            canvas.drawText(
+                "MODO EDIÇÃO — arraste os botões, toque num botão para personalizar",
+                width / 2f,
+                menuRect.bottom + hintPaint.textSize * 1.6f,
+                hintPaint,
+            )
+        }
+    }
+
+    private fun drawShape(canvas: Canvas, b: ButtonCfg, rect: RectF, paint: Paint) {
+        if (b.circular) {
+            canvas.drawCircle(rect.centerX(), rect.centerY(), rect.width() / 2f, paint)
+        } else {
+            canvas.drawRoundRect(rect, 18f, 18f, paint)
+        }
+    }
+
+    private fun labelSizeFor(b: ButtonCfg): Float {
+        val rect = rectOf(b)
+        val base = rect.width() * if (b.label.length > 1) 0.20f else 0.40f
+        return base.coerceIn(14f, 90f)
     }
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (editMode) {
+            handleEditTouch(event)
+            invalidate()
+            return true
+        }
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN,
             MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP,
@@ -173,8 +376,69 @@ class ControlsOverlayView @JvmOverloads constructor(
         return true
     }
 
+    // -------------------------------------------------------------- edição
+
+    private fun handleEditTouch(event: MotionEvent) {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                editMoved = false
+                val x = event.getX(0)
+                val y = event.getY(0)
+                if (menuRect.contains(x, y)) {
+                    menuPressed = true
+                    editSelectedId = -1
+                    return
+                }
+                editTouchStartX = x
+                editTouchStartY = y
+                editSelectedId = findButtonAt(x, y)?.id ?: -1
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (editSelectedId >= 0) {
+                    val idx = buttons.indexOfFirst { it.id == editSelectedId }
+                    if (idx >= 0) {
+                        val x = event.getX(0)
+                        val y = event.getY(0)
+                        val dx = x - editTouchStartX
+                        val dy = y - editTouchStartY
+                        if (dx * dx + dy * dy > 12f) editMoved = true
+                        editTouchStartX = x
+                        editTouchStartY = y
+                        val b = buttons[idx]
+                        b.cx = (b.cx + dx / width).coerceIn(0.03f, 0.97f)
+                        b.cy = (b.cy + dy / height).coerceIn(0.03f, 0.97f)
+                    }
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (menuPressed) {
+                    menuPressed = false
+                    performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    onMenuPressed?.invoke()
+                    return
+                }
+                if (editSelectedId >= 0 && !editMoved) {
+                    val cfg = buttons.firstOrNull { it.id == editSelectedId }
+                    if (cfg != null) onButtonEditRequested?.invoke(cfg.copy())
+                }
+                if (editMoved) saveLayout()
+                editSelectedId = -1
+            }
+        }
+    }
+
+    private fun findButtonAt(x: Float, y: Float): ButtonCfg? {
+        // busca de trás pra frente = botões desenhados por cima têm prioridade
+        for (b in buttons.asReversed()) {
+            if (rectOf(b).contains(x, y)) return b
+        }
+        return null
+    }
+
+    // --------------------------------------------------------------- jogo
+
     private fun recompute(event: MotionEvent) {
-        pressed.clear()
+        val nowPressed = mutableSetOf<Int>()
         var menuNow = false
         for (i in 0 until event.pointerCount) {
             val x = event.getX(i)
@@ -183,19 +447,23 @@ class ControlsOverlayView @JvmOverloads constructor(
                 menuNow = true
                 continue
             }
-            for (b in buttons) {
-                if (b.rect.contains(x, y)) {
-                    pressed.add(b.id)
-                    break
-                }
-            }
+            val hit = findButtonAt(x, y)
+            if (hit != null) nowPressed.add(hit.id)
         }
         // Dispara o menu apenas na transição solta→pressionado
         if (menuNow && !menuPressed) {
+            performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             onMenuPressed?.invoke()
-            performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
         }
         menuPressed = menuNow
+
+        // Feedback tátil ao pressionar um botão NOVO (resposta melhor ao toque)
+        val added = nowPressed.any { !pressed.contains(it) }
+        pressed.clear()
+        pressed.addAll(nowPressed)
+        if (added) {
+            performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+        }
         publish()
     }
 

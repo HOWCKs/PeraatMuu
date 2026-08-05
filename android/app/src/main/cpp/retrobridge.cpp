@@ -220,6 +220,20 @@ static std::string g_sys_dir;
 static std::string g_save_dir;
 static int g_sample_rate = 44100;
 
+// Fator de aceleração (1.0 = normal, até 5.0 ou mais para fast-forward)
+static std::atomic<float> g_speed{1.0f};
+
+// Pokes de cheat aplicados a cada quadro (game reescreve a RAM todo frame).
+// Cada entrada: [id de memória, endereço, tamanho em bytes, valor LE].
+struct CheatPoke {
+    uint32_t memId;
+    uint32_t addr;
+    uint32_t value;
+    uint8_t size;
+};
+static std::mutex g_cheats_mutex;
+static std::vector<CheatPoke> g_cheats;
+
 // Conteúdo da ROM carregada em memória. Deve permanecer VÁLIDO até
 // retro_unload_game (vários núcleos guardam ponteiros para ele).
 static std::vector<uint8_t> g_rom_data;
@@ -458,16 +472,34 @@ static int16_t input_state_cb(unsigned port, unsigned device, unsigned index, un
 // Thread de emulação
 // ---------------------------------------------------------------------------
 
+// Aplica pokes de cheat na RAM exposta pelo núcleo (chamado antes de cada run).
+static void apply_cheats() {
+    std::lock_guard<std::mutex> lock(g_cheats_mutex);
+    if (g_cheats.empty() || !g_core.retro_get_memory_data) return;
+    for (const auto &c : g_cheats) {
+        void *base = g_core.retro_get_memory_data(c.memId);
+        size_t total = g_core.retro_get_memory_size(c.memId);
+        if (!base || c.addr + c.size > total) continue;
+        uint8_t *p = static_cast<uint8_t *>(base) + c.addr;
+        for (uint8_t i = 0; i < c.size; ++i) {
+            p[i] = static_cast<uint8_t>((c.value >> (8 * i)) & 0xFF);
+        }
+    }
+}
+
 static void emu_thread_main() {
     using clock = std::chrono::steady_clock;
-    const double target = g_fps > 1.0 ? 1.0 / g_fps : 1.0 / 60.0;
+    const double base_target = g_fps > 1.0 ? 1.0 / g_fps : 1.0 / 60.0;
 
     while (g_running.load(std::memory_order_acquire) && !g_should_quit.load(std::memory_order_acquire)) {
         auto start = clock::now();
         {
             std::lock_guard<std::mutex> lock(g_run_mutex);
+            apply_cheats();
             g_core.retro_run();
         }
+        const double speed = (double)g_speed.load(std::memory_order_acquire);
+        const double target = base_target / (speed > 1.0 ? speed : 1.0);
         double elapsed = std::chrono::duration<double>(clock::now() - start).count();
         if (elapsed < target) {
             // Além do limitador de FPS, o consumo do buffer de áudio pelo
@@ -804,6 +836,58 @@ Java_com_peraatmuu_app_emulator_RetroBridge_nativeGetFps(JNIEnv *env, jclass cla
     (void)env;
     (void)clazz;
     return g_fps;
+}
+
+// ---------------------------------------------------------------------------
+// Velocidade de emulação e cheats
+// ---------------------------------------------------------------------------
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_peraatmuu_app_emulator_RetroBridge_nativeSetSpeedFactor(
+        JNIEnv *env, jclass clazz, jfloat factor) {
+    (void)env;
+    (void)clazz;
+    float f = factor;
+    if (f < 0.25f) f = 0.25f;
+    if (f > 10.0f) f = 10.0f;
+    g_speed.store(f, std::memory_order_release);
+    // Zera o buffer de áudio para não acumular latência ao mudar de ritmo.
+    std::lock_guard<std::mutex> lock(g_audio_mutex);
+    g_audio.clear();
+    g_audio_head = 0;
+}
+
+extern "C" JNIEXPORT jfloat JNICALL
+Java_com_peraatmuu_app_emulator_RetroBridge_nativeGetSpeedFactor(JNIEnv *env, jclass clazz) {
+    (void)env;
+    (void)clazz;
+    return g_speed.load(std::memory_order_acquire);
+}
+
+/// Define a lista de pokes ativos. Format: ints agrupados de 4:
+/// [memId, endereço, tamanho(1|2|4), valor (little-endian)]. Lista vazia limpa.
+extern "C" JNIEXPORT void JNICALL
+Java_com_peraatmuu_app_emulator_RetroBridge_nativeSetCheats(
+        JNIEnv *env, jclass clazz, jintArray entries) {
+    std::lock_guard<std::mutex> lock(g_cheats_mutex);
+    g_cheats.clear();
+    if (!entries) return;
+    jsize n = env->GetArrayLength(entries);
+    if (n <= 0 || n % 4 != 0) return;
+    jint *data = env->GetIntArrayElements(entries, nullptr);
+    if (!data) return;
+    for (jsize i = 0; i + 3 < n; i += 4) {
+        CheatPoke p{};
+        p.memId = static_cast<uint32_t>(data[i]);
+        p.addr  = static_cast<uint32_t>(data[i + 1]);
+        jint sz = data[i + 2];
+        if (sz != 1 && sz != 2 && sz != 4) continue;
+        p.size  = static_cast<uint8_t>(sz);
+        p.value = static_cast<uint32_t>(data[i + 3]);
+        g_cheats.push_back(p);
+    }
+    env->ReleaseIntArrayElements(entries, data, JNI_ABORT);
+    LOGI("Cheats ativos: %zu", g_cheats.size());
 }
 
 extern "C" JNIEXPORT jboolean JNICALL

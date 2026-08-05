@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import 'app.dart';
 import 'services/zip_rom.dart';
+import 'state/app_settings.dart';
 import 'state/core_controller.dart';
 import 'state/library_controller.dart';
 
@@ -21,9 +22,12 @@ void main() {
   );
   // Faxina sem bloquear o boot: apaga extrações de ROM com mais de 7 dias.
   unawaited(cleanZipRomCache());
+  final settings = AppSettings();
+  unawaited(settings.init());
   runApp(
     MultiProvider(
       providers: [
+        ChangeNotifierProvider.value(value: settings),
         ChangeNotifierProvider(create: (_) => CoreController()),
         ChangeNotifierProvider(create: (_) => LibraryController()),
       ],
