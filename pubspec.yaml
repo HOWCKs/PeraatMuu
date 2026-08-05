@@ -1,0 +1,41 @@
+name: peraatmuu
+description: Lan House de Emuladores Mobile - Multi-console via Flutter + FFI
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  google_fonts: ^6.2.1
+  provider: ^6.1.2
+  shared_preferences: ^2.3.2
+  path_provider: ^2.1.4
+  webview_flutter: ^4.10.0
+  permission_handler: ^11.3.1
+  # Emuladores nativos via FFI (plugins futuros ou bindgen gerados)
+  # ffi: ^2.1.0
+  # win32: ^5.6.0 (exemplo Windows; no Android usa NDK + JNI/FFI)
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/fonts/
+    - assets/roms/README.md
+  fonts:
+    - family: Orbitron
+      fonts:
+        - asset: assets/fonts/Orbitron-Regular.ttf
+    - family: Rajdhani
+      fonts:
+        - asset: assets/fonts/Rajdhani-Regular.ttf
