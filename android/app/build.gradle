@@ -27,9 +27,8 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
-        ndk {
-            abiFilters "armeabi-v7a", "arm64-v8a", "x86_64"
-        }
+        // NOTA: não definir ndk.abiFilters aqui — conflita com o
+        // `flutter build apk --split-per-abi` usado no CI.
 
         externalNativeBuild {
             cmake {
