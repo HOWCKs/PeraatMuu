@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Corpo do gamepad neon -->
+    <group
+        android:scaleX="0.72"
+        android:scaleY="0.72"
+        android:translateX="15.12"
+        android:translateY="15.12">
+        <path
+            android:fillColor="#7B2FFF"
+            android:pathData="M28,32h52a18,18 0 0 1 18,18v6a18,18 0 0 1 -18,18h-6c-6,0 -10,-3 -13,-7h-14c-3,4 -7,7 -13,7h-6a18,18 0 0 1 -18,-18v-6a18,18 0 0 1 18,-18z" />
+        <!-- D-pad cruz -->
+        <path
+            android:fillColor="#00F5D4"
+            android:pathData="M24.5,44h7v5.5H37v7h-5.5V62h-7v-5.5H19v-7h5.5z" />
+        <!-- Botão A (magenta) -->
+        <path
+            android:fillColor="#FF2E88"
+            android:pathData="M81,46 A4.5,4.5 0 1 1 72,46 A4.5,4.5 0 1 1 81,46 Z" />
+        <!-- Botão B (amarelo) -->
+        <path
+            android:fillColor="#F9F871"
+            android:pathData="M72,58 A4.5,4.5 0 1 1 63,58 A4.5,4.5 0 1 1 72,58 Z" />
+    </group>
+</vector>

@@ -1,0 +1,13 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  errors:
+    # Núcleos eres são baixados em build; projetos de emulador usam bastante interop nativo.
+    avoid_slow_async_io: ignore
+  exclude:
+    - "**/*.g.dart"
+
+linter:
+  rules:
+    prefer_single_quotes: true
+    unawaited_futures: true

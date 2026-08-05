@@ -1,0 +1,28 @@
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+.flutter-versions
+pubspec.lock
+
+# Android
+android/local.properties
+android/.gradle/
+android/app/build/
+android/key.properties
+*.keystore
+!debug.keystore
+
+# Núcleos libretro baixados durante o build (CI) — não versionar binários grandes
+android/app/src/main/jniLibs/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# SO
+.DS_Store
+Thumbs.db

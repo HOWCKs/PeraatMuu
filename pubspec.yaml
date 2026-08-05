@@ -1,0 +1,46 @@
+name: peraatmuu
+description: "PeraatMuu — todos os seus emuladores retrô em um único app."
+publish_to: "none"
+
+# MAJOR.MINOR.PATCH+buildNumber
+# - O versionCode (+N) é sobrescrito no CI pelo número da execução do GitHub Actions.
+# - Para lançar uma versão: suba este valor, faça commit e crie uma tag vX.Y.Z (ver docs/BUILD.md).
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  provider: ^6.1.2
+  path_provider: ^2.1.4
+  permission_handler: ^11.3.1
+  file_picker: ^8.1.2
+  package_info_plus: ^8.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+
+  fonts:
+    - family: Audiowide
+      fonts:
+        - asset: assets/fonts/Audiowide-Regular.ttf
+    - family: Rajdhani
+      fonts:
+        - asset: assets/fonts/Rajdhani-Regular.ttf
+        - asset: assets/fonts/Rajdhani-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Rajdhani-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Rajdhani-Bold.ttf
+          weight: 700
