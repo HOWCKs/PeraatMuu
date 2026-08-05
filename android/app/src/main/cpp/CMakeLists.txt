@@ -6,8 +6,9 @@ project(retrobridge LANGUAGES CXX)
 add_library(retrobridge SHARED retrobridge.cpp)
 
 find_library(log-lib log)
+find_library(egl-lib EGL)
 
-target_link_libraries(retrobridge ${log-lib} dl)
+target_link_libraries(retrobridge ${log-lib} ${egl-lib} dl)
 
 set_target_properties(retrobridge PROPERTIES
     CXX_STANDARD 17
