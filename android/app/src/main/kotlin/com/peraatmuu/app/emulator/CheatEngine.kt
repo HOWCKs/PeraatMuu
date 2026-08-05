@@ -86,7 +86,7 @@ object CheatEngine {
         val out = ArrayList<Int>()
         for (cheat in cheats) {
             if (!cheat.enabled) continue
-            for (poke in decode(cheat.code, systemId)) {
+            for (poke in decode(cheat.code, systemId) ?: continue) {
                 out.add(poke.memId)
                 out.add(poke.addr)
                 out.add(poke.size)
