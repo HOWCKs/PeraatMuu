@@ -2,6 +2,36 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [1.3.0] - 2026-08-05
+
+### Adicionado
+- **Nintendo DS jogável (melonDS, experimental):** duas telas empilhadas
+  e **tela sensível ao toque funcionando** — toque na metade de baixo do
+  vídeo para usar a caneta.
+- **PSP (PPSSPP) e Nintendo 64 (Mupen64Plus-Next) experimentais:** a ponte
+  nativa agora negocia **renderização por hardware (OpenGL ES)** — o
+  núcleo desenha direto na GPU. Jogos leves rodam em aparelhos simples;
+  jogos 3D pesados pedem um celular mais forte.
+- **PS2, GameCube, Wii e Nintendo 3DS no catálogo** como "EM BREVE", com
+  explicação honesta do motivo (núcleos só existem para 64-bit com GPU
+  forte — chegam quando o app tiver versão 64-bit pesada).
+- **Imagem representando cada console** nos cards e no cabeçalho da tela
+  do console (arte neon em estilo synthwave).
+- **Descrição de cada console** ("o que é esse console") na tela de
+  detalhes, em linguagem simples.
+- **Ícones vetoriais nos botões virtuais:** setas do D-pad, START, SELECT
+  e os presets do editor viraram vetores desenhados — sem glifos que o
+  celular renderizava como emoji colorido.
+- **Escolha manual de console para extensões ambíguas:** ao adicionar um
+  arquivo .iso/.pbp pelo botão ＋, o app pergunta se é PS1 ou PSP.
+
+### Alterado
+- **Navegação ainda mais leve:** no modo "Reduzir animações" as trocas de
+  tela são instantâneas e sombras/brilhos custosos são desligados —
+  pensado para aparelhos de 2 GB de RAM.
+- Carregamento do jogo agora acontece na thread GL (necessário para os
+  núcleos com GPU, sem afetar os demais).
+
 ## [1.2.0] - 2026-08-05
 
 ### Adicionado

@@ -35,6 +35,16 @@ object RetroBridge {
     @JvmStatic external fun nativeGetSpeedFactor(): Float
     @JvmStatic external fun nativeSetCheats(entries: IntArray)
 
+    /** Núcleo negociou renderização por hardware (GPU) durante o load? */
+    @JvmStatic external fun nativeIsHwRender(): Boolean
+
+    /** Executa UM retro_run() na thread GL (núcleos com GPU desenham direto). */
+    @JvmStatic external fun nativeRunHwFrame()
+
+    /** Cursor/toque da tela sensível ao toque (DS): coordenadas normalizadas
+     * no padrão libretro (-32767..32767) cobrindo o quadro inteiro. */
+    @JvmStatic external fun nativeSetPointer(x: Int, y: Int, pressed: Boolean)
+
     @JvmStatic
     fun init(corePath: String, sysDir: String, saveDir: String) {
         val code = nativeInit(corePath, sysDir, saveDir)

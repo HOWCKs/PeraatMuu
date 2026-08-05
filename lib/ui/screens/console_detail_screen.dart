@@ -46,6 +46,10 @@ class ConsoleDetailScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _CoreCard(system: system, ready: coreReady),
+                      if (system.description.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        _DescriptionCard(system: system),
+                      ],
                       if (system.notes.isNotEmpty) ...[
                         const SizedBox(height: 10),
                         _NotesCard(system: system),
@@ -175,6 +179,39 @@ class ConsoleDetailScreen extends StatelessWidget {
   }
 }
 
+class _DescriptionCard extends StatelessWidget {
+  final ConsoleSystem system;
+
+  const _DescriptionCard({required this.system});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF262640)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.videogame_asset_rounded,
+              color: system.gradient.first, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              system.description,
+              style: const TextStyle(
+                  color: AppTheme.textHigh, fontSize: 13, height: 1.45),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _Header extends StatelessWidget {
   final ConsoleSystem system;
 
@@ -183,16 +220,41 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: system.gradient,
-        ),
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
+      decoration: const BoxDecoration(
+        color: AppTheme.bg0,
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 8, 16, 22),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          // Arte do console ao fundo do cabeçalho
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.55,
+              child: Image.asset(
+                system.imageAsset,
+                fit: BoxFit.cover,
+                cacheWidth: 512,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    system.gradient.first.withValues(alpha: 0.65),
+                    system.gradient.last.withValues(alpha: 0.92),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 16, 22),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -239,6 +301,8 @@ class _Header extends StatelessWidget {
             ),
           ],
         ),
+          ),
+        ],
       ),
     );
   }

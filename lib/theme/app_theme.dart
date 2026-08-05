@@ -15,7 +15,7 @@ class AppTheme {
   static const Color textHigh = Color(0xFFF2F2FA);
   static const Color textMid = Color(0xFF9D9DB8);
 
-  static ThemeData dark() {
+  static ThemeData dark({bool reducedEffects = false}) {
     final base = ThemeData.dark();
     return base.copyWith(
       scaffoldBackgroundColor: bg0,
@@ -36,6 +36,13 @@ class AppTheme {
         color: Color(0xFF262640),
         thickness: 1,
       ),
+      // No modo leve as trocas de tela são instantâneas (sem animação),
+      // o que remove engasgos em aparelhos com pouca RAM.
+      pageTransitionsTheme: reducedEffects
+          ? const PageTransitionsTheme(builders: {
+              TargetPlatform.android: _InstantTransitionsBuilder(),
+            })
+          : null,
     );
   }
 
@@ -62,4 +69,19 @@ class AppTheme {
           offset: const Offset(0, 6),
         ),
       ];
+}
+
+/// Transições de página instantâneas (usadas no modo leve).
+class _InstantTransitionsBuilder extends PageTransitionsBuilder {
+  const _InstantTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) =>
+      child;
 }

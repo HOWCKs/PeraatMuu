@@ -17,6 +17,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SeekBar
@@ -51,6 +52,9 @@ class GameActivity : Activity() {
         private val NEON = Color.parseColor("#00F5D4")
         private val TXT = Color.parseColor("#F4F4FA")
         private val TXT_MID = Color.parseColor("#9FA3C0")
+
+        /** Consoles com tela sensível ao toque (interação direta no jogo). */
+        private val TOUCH_SYSTEMS = setOf("nds")
     }
 
     private lateinit var glView: GLSurfaceView
@@ -67,6 +71,15 @@ class GameActivity : Activity() {
     private var virtualMask = 0
     private var physicalMask = 0
     private var dead = false
+
+    /** Núcleo usa GPU (renderização por hardware)? */
+    private var hwMode = false
+
+    /** Load do jogo concluído na thread GL? */
+    private var emuLoaded = false
+
+    /** Console tem tela sensível ao toque (Nintendo DS)? */
+    private var touchEnabled = false
 
     private var editingButton: ControlsOverlayView.ButtonCfg? = null
     private val cheats = mutableListOf<CheatEngine.Cheat>()
@@ -116,23 +129,23 @@ class GameActivity : Activity() {
 
         try {
             RetroBridge.init(corePath, systemDir.absolutePath, savesDir.absolutePath)
-            RetroBridge.loadGame(romPath)
         } catch (e: EmulatorException) {
             Toast.makeText(this, e.message, Toast.LENGTH_LONG).show()
             dead = true
             finish()
             return
         }
-
-        if (sramFile.exists()) {
-            RetroBridge.nativeLoadRam(sramFile.absolutePath)
-        }
+        touchEnabled = systemId in TOUCH_SYSTEMS
 
         renderer = EmulatorRenderer()
         applyVisualSettings()
 
         glView = GLSurfaceView(this).apply {
+            // Profundidade+stencil e contexto preservado: necessários para os
+            // núcleos com renderização por GPU (PSP, N64).
+            setEGLConfigChooser(8, 8, 8, 8, 16, 8)
             setEGLContextClientVersion(2)
+            setPreserveEGLContextOnPause(true)
             setRenderer(renderer)
             renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
         }
@@ -144,6 +157,9 @@ class GameActivity : Activity() {
             }
             onMenuPressed = { showGameMenu() }
             onButtonEditRequested = { showButtonEditor(it) }
+            if (touchEnabled) {
+                onScreenTouch = { x, y, action -> routePointer(x, y, action) }
+            }
         }
 
         val root = FrameLayout(this).apply {
@@ -172,8 +188,49 @@ class GameActivity : Activity() {
         // Velocidade persistida
         RetroBridge.nativeSetSpeedFactor(EmuSettings.speedFactor)
 
-        toast(romName)
-        RetroBridge.nativeStart()
+        // O carregamento do jogo acontece NA THREAD GL: núcleos com GPU
+        // (PSP/N64) já inicializam OpenGL dentro do retro_load_game.
+        val romLabel = romName
+        glView.queueEvent {
+            try {
+                RetroBridge.loadGame(romPath)
+                if (sramFile.exists()) {
+                    RetroBridge.nativeLoadRam(sramFile.absolutePath)
+                }
+                hwMode = RetroBridge.nativeIsHwRender()
+                renderer.hwMode = hwMode
+                emuLoaded = true
+                runOnUiThread {
+                    toast(if (hwMode) "$romLabel (GPU)" else romLabel)
+                    if (!hwMode) RetroBridge.nativeStart()
+                    if (EmuSettings.speedFactor <= 1f) startAudio()
+                }
+            } catch (e: EmulatorException) {
+                runOnUiThread {
+                    Toast.makeText(this, e.message, Toast.LENGTH_LONG).show()
+                    dead = true
+                    finish()
+                }
+            }
+        }
+    }
+
+    /** Repassa o toque da tela do DS ao núcleo (coordenadas libretro). */
+    private fun routePointer(x: Float, y: Float, action: Int) {
+        if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_MOVE) {
+            val r = renderer.frameRectOnView()
+            val rw = if (r.width() > 1f) r.width() else 1f
+            val rh = if (r.height() > 1f) r.height() else 1f
+            val nx = (((x - r.left) / rw) * 65534f - 32767f).toInt()
+            val ny = (((y - r.top) / rh) * 65534f - 32767f).toInt()
+            RetroBridge.nativeSetPointer(
+                nx.coerceIn(-32767, 32767),
+                ny.coerceIn(-32767, 32767),
+                true,
+            )
+        } else {
+            RetroBridge.nativeSetPointer(0, 0, false)
+        }
     }
 
     override fun onResume() {
@@ -181,8 +238,10 @@ class GameActivity : Activity() {
         applyImmersive()
         if (!dead) {
             if (::glView.isInitialized) glView.onResume()
-            RetroBridge.nativeStart()
-            if (EmuSettings.speedFactor <= 1f) startAudio()
+            if (emuLoaded) {
+                if (!hwMode) RetroBridge.nativeStart()
+                if (EmuSettings.speedFactor <= 1f) startAudio()
+            }
         }
     }
 
@@ -200,7 +259,12 @@ class GameActivity : Activity() {
         if (::sramFile.isInitialized) {
             RetroBridge.nativeSaveRam(sramFile.absolutePath)
         }
-        RetroBridge.nativeUnload()
+        if (hwMode && ::glView.isInitialized) {
+            // Núcleos com GPU precisam do contexto GL vivo para se desligar.
+            glView.queueEvent { RetroBridge.nativeUnload() }
+        } else {
+            RetroBridge.nativeUnload()
+        }
     }
 
     private fun applyImmersive() {
@@ -522,7 +586,7 @@ class GameActivity : Activity() {
 
         column.addView(
             TextView(this).apply {
-                text = "Ícone (texto)"
+                text = "Ícone"
                 setTextColor(TXT)
                 textSize = 13f
                 setPadding(0, dp(8), 0, dp(4))
@@ -530,30 +594,50 @@ class GameActivity : Activity() {
         )
         val grid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         var row: LinearLayout? = null
-        ControlsOverlayView.PRESET_LABELS.forEachIndexed { i, label ->
+        ControlsOverlayView.PRESETS.forEachIndexed { i, preset ->
             if (i % 6 == 0) {
                 row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
                 grid.addView(row)
             }
-            val chip = TextView(this).apply {
-                text = label
-                setTextColor(if (cfg.image.isBlank() && cfg.label == label) NEON else TXT_MID)
-                textSize = 13f
-                gravity = Gravity.CENTER
+            val selected = cfg.image.isBlank() && if (preset.iconRes != 0) {
+                cfg.icon == preset.iconRes
+            } else {
+                cfg.icon == 0 && cfg.label == preset.label
+            }
+            val chip = FrameLayout(this).apply {
                 layoutParams = LinearLayout.LayoutParams(0, dp(38), 1f).apply {
                     setMargins(dp(2), dp(2), dp(2), dp(2))
                 }
                 background = GradientDrawable().apply {
                     cornerRadius = dp(8).toFloat()
                     setColor(CARD)
-                    setStroke(dp(1), if (cfg.image.isBlank() && cfg.label == label) NEON else LINE)
+                    setStroke(dp(1), if (selected) NEON else LINE)
+                }
+                if (preset.iconRes != 0) {
+                    addView(ImageView(this@GameActivity).apply {
+                        setImageResource(preset.iconRes)
+                        setColorFilter(if (selected) NEON else TXT_MID)
+                        layoutParams = FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER)
+                    })
+                } else {
+                    addView(TextView(this@GameActivity).apply {
+                        text = preset.label
+                        setTextColor(if (selected) NEON else TXT_MID)
+                        textSize = 13f
+                        gravity = Gravity.CENTER
+                        layoutParams = FrameLayout.LayoutParams(
+                            FrameLayout.LayoutParams.MATCH_PARENT,
+                            FrameLayout.LayoutParams.MATCH_PARENT,
+                        )
+                    })
                 }
                 setOnClickListener {
-                    cfg.label = label
+                    cfg.label = preset.label
+                    cfg.icon = preset.iconRes
                     cfg.image = ""
                     controls.updateButton(cfg)
                     dialog.dismiss()
-                    toast("Ícone alterado para \"$label\"")
+                    toast("Ícone alterado")
                 }
             }
             row?.addView(chip)

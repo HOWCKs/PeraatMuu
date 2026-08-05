@@ -17,6 +17,10 @@
 #include <dlfcn.h>
 #include <android/log.h>
 
+#ifdef __ANDROID__
+#include <EGL/egl.h>   // eglGetProcAddress p/ núcleos com GPU
+#endif
+
 #include <atomic>
 #include <chrono>
 #include <cstdarg>
@@ -40,6 +44,46 @@
 #define RETRO_API_VERSION 1
 
 #define RETRO_DEVICE_JOYPAD 1
+#define RETRO_DEVICE_POINTER 2
+
+// IDs do dispositivo POINTER (tela sensível ao toque)
+enum {
+    RETRO_DEVICE_ID_POINTER_X = 0,
+    RETRO_DEVICE_ID_POINTER_Y = 1,
+    RETRO_DEVICE_ID_POINTER_PRESSED = 2,
+};
+
+// Tipos de contexto GL que um núcleo pode pedir
+enum retro_hw_context_type {
+    RETRO_HW_CONTEXT_NONE = 0,
+    RETRO_HW_CONTEXT_OPENGL = 1,
+    RETRO_HW_CONTEXT_OPENGLES2 = 2,
+    RETRO_HW_CONTEXT_OPENGL_CORE = 3,
+    RETRO_HW_CONTEXT_OPENGLES3 = 4,
+    RETRO_HW_CONTEXT_OPENGLES_VERSION = 5,
+    RETRO_HW_CONTEXT_VULKAN = 6,
+};
+
+typedef uintptr_t (*retro_hw_get_current_framebuffer_t)(void);
+typedef void *(*retro_hw_get_proc_address_t)(const char *);
+
+// ABI estável do libretro (mesma ordem de libretro.h). O núcleo preenche
+// context_reset/context_destroy/flags; o FRONTEND (nós) preenche
+// get_current_framebuffer e get_proc_address antes de retornar true.
+struct retro_hw_render_callback {
+    enum retro_hw_context_type context_type;
+    void (*context_reset)(void);
+    retro_hw_get_current_framebuffer_t get_current_framebuffer;
+    retro_hw_get_proc_address_t get_proc_address;
+    bool depth;
+    bool stencil;
+    bool bottom_left_origin;
+    unsigned version_major;
+    unsigned version_minor;
+    bool cache_context;
+    void (*context_destroy)(void);
+    bool debug_context;
+};
 
 // Botões do joypad (ids)
 enum {
@@ -216,6 +260,18 @@ static const size_t AUDIO_MAX_BYTES = 1 << 20;  // ~5,9s @ 44,1kHz estéreo
 
 static std::atomic<uint32_t> g_buttons{0};
 
+// Cursor/toque da tela sensível ao toque (coordenadas libretro -32767..32767)
+static std::atomic<int> g_ptr_x{0};
+static std::atomic<int> g_ptr_y{0};
+static std::atomic<bool> g_ptr_pressed{false};
+
+// Renderização por hardware (GPU) — núcleos como PPSSPP/mupen64plus-next
+// desenham direto na superfície GL em vez de entregar um framebuffer.
+static std::atomic<bool> g_hw_requested{false};
+static retro_hw_render_callback g_hw_cb{};
+static bool g_hw_context_reset_done = false;
+static bool g_hw_context_destroyed = false;
+
 static std::string g_sys_dir;
 static std::string g_save_dir;
 static int g_sample_rate = 44100;
@@ -274,6 +330,32 @@ static bool read_file(const char *path, std::vector<uint8_t> &out) {
 // Callbacks entregues ao núcleo
 // ---------------------------------------------------------------------------
 
+// Framebuffer "atual" entregue ao núcleo com GPU: 0 = superfície padrão
+// da janela (o núcleo desenha direto na tela via GL).
+static uintptr_t hw_get_current_framebuffer(void) {
+    return 0;
+}
+
+static void *hw_get_proc_address(const char *sym) {
+    if (!sym) return nullptr;
+#ifdef __ANDROID__
+    void *p = reinterpret_cast<void *>(eglGetProcAddress(sym));
+    if (p) return p;
+    // Alguns EGLs não exportam tudo via eglGetProcAddress — dlsym no GLESv3/2.
+    static void *gles_lib = nullptr;
+    static bool gles_tried = false;
+    if (!gles_tried) {
+        gles_tried = true;
+        gles_lib = dlopen("libGLESv3.so", RTLD_NOW | RTLD_LOCAL);
+        if (!gles_lib) gles_lib = dlopen("libGLESv2.so", RTLD_NOW | RTLD_LOCAL);
+    }
+    return gles_lib ? dlsym(gles_lib, sym) : nullptr;
+#else
+    (void)sym;
+    return nullptr;
+#endif
+}
+
 static void core_log(enum retro_log_level level, const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
@@ -325,9 +407,30 @@ static bool environment_cb(unsigned cmd, void *data) {
         }
         case RETRO_ENV_SET_INPUT_DESCRIPTORS:
             return true;
-        case RETRO_ENV_SET_HW_RENDER:
-            LOGW("Núcleo pediu HW render (OpenGL) — não suportado nesta versão");
-            return false;
+        case RETRO_ENV_SET_HW_RENDER: {
+            auto *cb = static_cast<retro_hw_render_callback *>(data);
+            if (!cb) return false;
+            switch (cb->context_type) {
+                case RETRO_HW_CONTEXT_OPENGLES2:
+                case RETRO_HW_CONTEXT_OPENGLES3:
+                case RETRO_HW_CONTEXT_OPENGLES_VERSION:
+                    // O frontend (nós) fornece estas duas funções ao núcleo.
+                    cb->get_current_framebuffer = hw_get_current_framebuffer;
+                    cb->get_proc_address = hw_get_proc_address;
+                    g_hw_cb = *cb;
+                    g_hw_requested = true;
+                    g_hw_context_reset_done = false;
+                    g_hw_context_destroyed = false;
+                    LOGI("HW render aceito (GLES, %u.%u, depth=%d stencil=%d)",
+                         cb->version_major, cb->version_minor,
+                         (int)cb->depth, (int)cb->stencil);
+                    return true;
+                default:
+                    LOGW("HW render: tipo de contexto %d não suportado",
+                         (int)cb->context_type);
+                    return false;
+            }
+        }
         case RETRO_ENV_GET_VARIABLE: {
             auto *var = static_cast<retro_variable *>(data);
             if (var) var->value = nullptr;  // usa os padrões do núcleo
@@ -462,6 +565,18 @@ static int16_t input_state_cb(unsigned port, unsigned device, unsigned index, un
     (void)index;
     if (port != 0) return 0;
     unsigned base_device = device & 0xFF;
+    if (base_device == RETRO_DEVICE_POINTER) {
+        switch (id) {
+            case RETRO_DEVICE_ID_POINTER_X:
+                return static_cast<int16_t>(g_ptr_x.load(std::memory_order_relaxed));
+            case RETRO_DEVICE_ID_POINTER_Y:
+                return static_cast<int16_t>(g_ptr_y.load(std::memory_order_relaxed));
+            case RETRO_DEVICE_ID_POINTER_PRESSED:
+                return g_ptr_pressed.load(std::memory_order_relaxed) ? 1 : 0;
+            default:
+                return 0;
+        }
+    }
     if (base_device != RETRO_DEVICE_JOYPAD) return 0;
     if (id > 15) return 0;
     uint32_t mask = g_buttons.load(std::memory_order_relaxed);
@@ -626,6 +741,13 @@ Java_com_peraatmuu_app_emulator_RetroBridge_nativeInit(
         g_audio_head = 0;
     }
     g_buttons = 0;
+    g_ptr_x = 0;
+    g_ptr_y = 0;
+    g_ptr_pressed = false;
+    g_hw_requested = false;
+    g_hw_cb = retro_hw_render_callback{};
+    g_hw_context_reset_done = false;
+    g_hw_context_destroyed = false;
     g_frame_updated = false;
     g_should_quit = false;
     g_loaded = false;
@@ -728,6 +850,7 @@ Java_com_peraatmuu_app_emulator_RetroBridge_nativeStart(JNIEnv *env, jclass claz
     (void)env;
     (void)clazz;
     if (!g_core.handle || !g_loaded) return;
+    if (g_hw_requested.load()) return;  // núcleos GPU rodam na thread GL
     if (g_running.exchange(true)) return;  // já rodando
     g_emu_thread = std::thread(emu_thread_main);
 }
@@ -746,6 +869,12 @@ Java_com_peraatmuu_app_emulator_RetroBridge_nativeUnload(JNIEnv *env, jclass cla
     (void)clazz;
     Java_com_peraatmuu_app_emulator_RetroBridge_nativeStop(env, clazz);
     if (g_core.handle) {
+        // Núcleos GPU: avisa o núcleo que o contexto vai morrer (espera-se
+        // que esta chamada rode na thread GL, com contexto vivo).
+        if (g_hw_requested.load() && !g_hw_context_destroyed && g_hw_cb.context_destroy) {
+            g_hw_cb.context_destroy();
+            g_hw_context_destroyed = true;
+        }
         if (g_loaded) g_core.retro_unload_game();
         g_core.retro_deinit();
         dlclose(g_core.handle);
@@ -855,6 +984,42 @@ Java_com_peraatmuu_app_emulator_RetroBridge_nativeSetSpeedFactor(
     std::lock_guard<std::mutex> lock(g_audio_mutex);
     g_audio.clear();
     g_audio_head = 0;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_peraatmuu_app_emulator_RetroBridge_nativeIsHwRender(JNIEnv *env, jclass clazz) {
+    (void)env;
+    (void)clazz;
+    return g_hw_requested.load(std::memory_order_acquire) ? JNI_TRUE : JNI_FALSE;
+}
+
+// Executa UM quadro de núcleo com GPU. DEVE rodar na thread GL (a mesma em
+// que retro_load_game foi chamada) — o núcleo desenha direto na superfície.
+extern "C" JNIEXPORT void JNICALL
+Java_com_peraatmuu_app_emulator_RetroBridge_nativeRunHwFrame(JNIEnv *env, jclass clazz) {
+    (void)env;
+    (void)clazz;
+    if (!g_core.handle || !g_loaded || !g_hw_requested.load()) return;
+    if (g_should_quit.load()) return;
+    std::lock_guard<std::mutex> lock(g_run_mutex);
+    if (!g_hw_context_reset_done && g_hw_cb.context_reset) {
+        g_hw_cb.context_reset();
+        g_hw_context_reset_done = true;
+    }
+    apply_cheats();
+    g_core.retro_run();
+    // Audios produzidos no retro_run já foram ao ring buffer (thread de
+    // áudio do lado Kotlin consome).
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_peraatmuu_app_emulator_RetroBridge_nativeSetPointer(
+        JNIEnv *env, jclass clazz, jint x, jint y, jboolean pressed) {
+    (void)env;
+    (void)clazz;
+    g_ptr_x.store((int)x, std::memory_order_relaxed);
+    g_ptr_y.store((int)y, std::memory_order_relaxed);
+    g_ptr_pressed.store(pressed == JNI_TRUE, std::memory_order_relaxed);
 }
 
 extern "C" JNIEXPORT jfloat JNICALL

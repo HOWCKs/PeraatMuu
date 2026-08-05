@@ -1,5 +1,6 @@
 package com.peraatmuu.app.emulator
 
+import android.graphics.RectF
 import android.opengl.GLES20
 import android.opengl.GLSurfaceView
 import android.util.Log
@@ -8,6 +9,7 @@ import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
+import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
 
@@ -15,6 +17,9 @@ import kotlin.math.min
  * Desenha o framebuffer RGBA do núcleo em uma textura OpenGL.
  * Suporta modos de escala (ajustar/preencher/recortar/preciso) e ajustes
  * de cor (brilho, contraste, saturação) direto no fragment shader.
+ *
+ * Quando [hwMode] é true, o núcleo renderiza direto na GPU (PSP/N64/…)
+ * e cada quadro da emulação é executado aqui, na thread GL.
  */
 class EmulatorRenderer : GLSurfaceView.Renderer {
 
@@ -32,6 +37,17 @@ class EmulatorRenderer : GLSurfaceView.Renderer {
     var brightness: Float = 0f
     var contrast: Float = 1f
     var saturation: Float = 1f
+
+    /** Renderização por hardware: o núcleo desenha direto (sem textura). */
+    @Volatile
+    var hwMode: Boolean = false
+
+    /** Área do vídeo em coordenadas da view (origem no topo). */
+    @Volatile
+    private var frameRectView: RectF = RectF(0f, 0f, 1f, 1f)
+
+    /** Retorna a área atual do vídeo em pixels da view (para o touch do DS). */
+    fun frameRectOnView(): RectF = RectF(frameRectView)
 
     private lateinit var posBuffer: FloatBuffer
     private lateinit var uvBuffer: FloatBuffer
@@ -104,9 +120,18 @@ class EmulatorRenderer : GLSurfaceView.Renderer {
         surfaceW = maxOf(1, width)
         surfaceH = maxOf(1, height)
         GLES20.glViewport(0, 0, surfaceW, surfaceH)
+        frameRectView = RectF(0f, 0f, surfaceW.toFloat(), surfaceH.toFloat())
     }
 
     override fun onDrawFrame(gl: GL10?) {
+        if (hwMode) {
+            // Núcleo com GPU: cada retro_run() desenha direto na superfície.
+            val speed = RetroBridge.nativeGetSpeedFactor()
+            val frames = if (speed > 1f) ceil(speed).toInt() else 1
+            repeat(frames) { RetroBridge.nativeRunHwFrame() }
+            return
+        }
+
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
 
         RetroBridge.nativeFrameInfo(info)
@@ -148,6 +173,18 @@ class EmulatorRenderer : GLSurfaceView.Renderer {
         val displayAspect = if (coreAspect > 0f) coreAspect else w.toFloat() / h.toFloat()
 
         val layout = computeLayout(w, h, displayAspect)
+
+        // Publica a área do vídeo em coordenadas da view (touch do DS)
+        run {
+            val p = layout.pos  // NDC: [-sx,-sy, sx,-sy, -sx,sy, sx,sy]
+            val sx2 = p[2]
+            val sy2 = p[7]
+            val left = ((1f - sx2) / 2f) * surfaceW
+            val right = ((1f + sx2) / 2f) * surfaceW
+            val top = ((1f - sy2) / 2f) * surfaceH
+            val bottom = ((1f + sy2) / 2f) * surfaceH
+            frameRectView = RectF(left, top, right, bottom)
+        }
 
         posBuffer.clear()
         posBuffer.put(layout.pos)

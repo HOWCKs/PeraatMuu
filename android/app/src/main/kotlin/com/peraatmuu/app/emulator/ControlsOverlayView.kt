@@ -11,9 +11,12 @@ import android.graphics.Color
 import android.graphics.RectF
 import android.util.AttributeSet
 import android.util.LruCache
+import android.graphics.drawable.Drawable
+import android.util.SparseArray
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
+import com.peraatmuu.app.R
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -44,12 +47,30 @@ class ControlsOverlayView @JvmOverloads constructor(
         const val BTN_L = 10
         const val BTN_R = 11
 
-        /** Ícones de texto disponíveis como preset (sem emoji). */
-        val PRESET_LABELS = listOf(
-            "A", "B", "X", "Y", "L", "R", "L2", "R2", "A+", "B+",
-            "▲", "▼", "◀", "▶", "↻", "⊕", "★", "▮▶", "❚❚",
-            "START", "SELECT", "MENU", "TURBO", "FF", "SAVE",
+        /** Preset do editor: texto (iconRes=0) ou ícone vetorial. */
+        data class Preset(val label: String, val iconRes: Int = 0)
+
+        /** Ícones disponíveis no editor — vetores desenhados, sem emoji. */
+        val PRESETS = listOf(
+            Preset("A"), Preset("B"), Preset("X"), Preset("Y"),
+            Preset("L"), Preset("R"), Preset("L2"), Preset("R2"),
+            Preset("A+"), Preset("B+"), Preset("START"), Preset("SELECT"),
+            Preset("MENU"), Preset("TURBO"), Preset("FF"), Preset("SAVE"),
+            Preset("▲", R.drawable.ic_ui_tri_up),
+            Preset("▼", R.drawable.ic_ui_tri_down),
+            Preset("◀", R.drawable.ic_ui_tri_left),
+            Preset("▶", R.drawable.ic_ui_tri_right),
+            Preset("↻", R.drawable.ic_ui_restart),
+            Preset("⊕", R.drawable.ic_ui_add_circle),
+            Preset("★", R.drawable.ic_ui_star),
+            Preset("❚❚", R.drawable.ic_ui_pause),
+            Preset("▶|", R.drawable.ic_ui_play_end),
+            Preset("⚡", R.drawable.ic_ui_bolt),
         )
+
+        /** Migra glifos antigos (layout salvo em versões anteriores) para vetor. */
+        fun iconForGlyph(label: String): Int =
+            PRESETS.firstOrNull { it.iconRes != 0 && it.label == label }?.iconRes ?: 0
     }
 
     /** Um botão configurável: posição em fração da tela, tamanho em fração
@@ -62,12 +83,17 @@ class ControlsOverlayView @JvmOverloads constructor(
         var size: Float,    // largura em fração da menor dimensão
         var circular: Boolean,
         var accent: Int,
-        var image: String = "",  // caminho de PNG personalizado ("" = texto)
+        var image: String = "",  // caminho de PNG personalizado ("" = texto/ícone)
+        var icon: Int = 0,       // drawable vetorial (0 = rótulo de texto)
     )
 
     var onButtonsChanged: ((Int) -> Unit)? = null
     var onMenuPressed: (() -> Unit)? = null
     var onButtonEditRequested: ((ButtonCfg) -> Unit)? = null
+
+    /** Toque na área do jogo (fora dos botões): usado pela tela sensível
+     * ao toque do Nintendo DS. Ação = ACTION_DOWN/MOVE/UP. */
+    var onScreenTouch: ((x: Float, y: Float, action: Int) -> Unit)? = null
 
     /** Quando true: arrastar = mover botões, toque rápido = personalizar
      * (sem enviar entrada ao jogo). */
@@ -82,6 +108,9 @@ class ControlsOverlayView @JvmOverloads constructor(
     private val pressed = mutableSetOf<Int>()
     private var menuPressed = false
     private var lastMask = 0
+
+    // ponteiro que caiu na área do jogo (touch do DS)
+    private var screenPointerId = -1
 
     // rastreio de drag no modo edição (por ponteiro)
     private var editSelectedId: Int = -1
@@ -120,6 +149,9 @@ class ControlsOverlayView @JvmOverloads constructor(
     private val srcRect = Rect()
     private val dstRect = Rect()
 
+    // cache de drawables vetoriais dos presets
+    private val iconCache = SparseArray<Drawable>()
+
     init {
         // Listener padrão de detecção de haptics habilitado para o toque leve
         isHapticFeedbackEnabled = true
@@ -136,11 +168,15 @@ class ControlsOverlayView @JvmOverloads constructor(
         val pink = Color.parseColor("#FF2E88")
         val list = mutableListOf<ButtonCfg>()
 
-        // D-pad (esquerda)
-        list += ButtonCfg(BTN_UP, "▲", 0.14f, 0.585f, 0.17f, false, dAccent)
-        list += ButtonCfg(BTN_DOWN, "▼", 0.14f, 0.895f, 0.17f, false, dAccent)
-        list += ButtonCfg(BTN_LEFT, "◀", 0.055f, 0.74f, 0.17f, false, dAccent)
-        list += ButtonCfg(BTN_RIGHT, "▶", 0.225f, 0.74f, 0.17f, false, dAccent)
+        // D-pad (esquerda) — ícones vetoriais (triângulos)
+        list += ButtonCfg(BTN_UP, "▲", 0.14f, 0.585f, 0.17f, false, dAccent,
+            icon = R.drawable.ic_ui_tri_up)
+        list += ButtonCfg(BTN_DOWN, "▼", 0.14f, 0.895f, 0.17f, false, dAccent,
+            icon = R.drawable.ic_ui_tri_down)
+        list += ButtonCfg(BTN_LEFT, "◀", 0.055f, 0.74f, 0.17f, false, dAccent,
+            icon = R.drawable.ic_ui_tri_left)
+        list += ButtonCfg(BTN_RIGHT, "▶", 0.225f, 0.74f, 0.17f, false, dAccent,
+            icon = R.drawable.ic_ui_tri_right)
 
         // Ações (direita) em losango
         list += ButtonCfg(BTN_X, "X", 0.86f, 0.58f, 0.17f, true, purple)
@@ -152,9 +188,11 @@ class ControlsOverlayView @JvmOverloads constructor(
         list += ButtonCfg(BTN_L, "L", 0.14f, 0.085f, 0.09f, false, pink)
         list += ButtonCfg(BTN_R, "R", 0.86f, 0.085f, 0.09f, false, pink)
 
-        // Start/Select
-        list += ButtonCfg(BTN_SELECT, "⊕", 0.43f, 0.90f, 0.085f, false, dAccent)
-        list += ButtonCfg(BTN_START, "▶|", 0.57f, 0.90f, 0.085f, false, dAccent)
+        // Start/Select — ícones vetoriais
+        list += ButtonCfg(BTN_SELECT, "⊕", 0.43f, 0.90f, 0.085f, false, dAccent,
+            icon = R.drawable.ic_ui_add_circle)
+        list += ButtonCfg(BTN_START, "▶|", 0.57f, 0.90f, 0.085f, false, dAccent,
+            icon = R.drawable.ic_ui_play_end)
         return list
     }
 
@@ -170,16 +208,19 @@ class ControlsOverlayView @JvmOverloads constructor(
             buttons.clear()
             for (i in 0 until arr.length()) {
                 val o = arr.getJSONObject(i)
+                val label = o.optString("label", "?")
+                val icon = o.optInt("icon", 0).let { if (it == 0) iconForGlyph(label) else it }
                 buttons.add(
                     ButtonCfg(
                         id = o.getInt("id"),
-                        label = o.optString("label", "?"),
+                        label = label,
                         cx = o.getDouble("cx").toFloat(),
                         cy = o.getDouble("cy").toFloat(),
                         size = o.getDouble("size").toFloat(),
                         circular = o.optBoolean("circular", true),
                         accent = o.optInt("accent", Color.parseColor("#00F5D4")),
                         image = o.optString("image", ""),
+                        icon = icon,
                     ),
                 )
             }
@@ -204,6 +245,7 @@ class ControlsOverlayView @JvmOverloads constructor(
                 put("circular", b.circular)
                 put("accent", b.accent)
                 put("image", b.image)
+                put("icon", b.icon)
             })
         }
         EmuSettings.controlsLayoutJson = arr.toString()
@@ -287,22 +329,26 @@ class ControlsOverlayView @JvmOverloads constructor(
             drawShape(canvas, b, rect, fillPaint)
             drawShape(canvas, b, rect, strokePaint)
 
-            // imagem personalizada ou texto
+            // imagem personalizada, ícone vetorial ou texto
             val bmp = bitmapFor(b)
-            if (bmp != null) {
-                val pad = rect.width() * 0.12f
-                srcRect.set(0, 0, bmp.width, bmp.height)
-                dstRect.set(
-                    (rect.left + pad).toInt(), (rect.top + pad).toInt(),
-                    (rect.right - pad).toInt(), (rect.bottom - pad).toInt(),
-                )
-                imagePaint.alpha = if (isPressed) 255 else 220
-                canvas.drawBitmap(bmp, srcRect, dstRect, imagePaint)
-            } else {
-                textPaint.alpha = if (isPressed) 255 else 190
-                textPaint.textSize = labelSizeFor(b)
-                val ty = rect.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f
-                canvas.drawText(b.label, rect.centerX(), ty, textPaint)
+            when {
+                bmp != null -> {
+                    val pad = rect.width() * 0.12f
+                    srcRect.set(0, 0, bmp.width, bmp.height)
+                    dstRect.set(
+                        (rect.left + pad).toInt(), (rect.top + pad).toInt(),
+                        (rect.right - pad).toInt(), (rect.bottom - pad).toInt(),
+                    )
+                    imagePaint.alpha = if (isPressed) 255 else 220
+                    canvas.drawBitmap(bmp, srcRect, dstRect, imagePaint)
+                }
+                b.icon != 0 -> drawIcon(canvas, b.icon, rect, isPressed)
+                else -> {
+                    textPaint.alpha = if (isPressed) 255 else 190
+                    textPaint.textSize = labelSizeFor(b)
+                    val ty = rect.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f
+                    canvas.drawText(b.label, rect.centerX(), ty, textPaint)
+                }
             }
 
             if (selected) {
@@ -319,10 +365,7 @@ class ControlsOverlayView @JvmOverloads constructor(
         val mr = menuRect.width() / 2f
         canvas.drawCircle(mcx, mcy, mr, fillPaint)
         canvas.drawCircle(mcx, mcy, mr, strokePaint)
-        textPaint.textSize = mr * 0.92f
-        textPaint.alpha = 200
-        val my = mcy - (textPaint.descent() + textPaint.ascent()) / 2f
-        canvas.drawText("≡", mcx, my, textPaint)
+        drawIcon(canvas, R.drawable.ic_ui_menu, menuRect, menuPressed)
         fillPaint.alpha = 38
 
         // Dicas do modo edição
@@ -345,6 +388,26 @@ class ControlsOverlayView @JvmOverloads constructor(
         }
     }
 
+    /** Desenha um ícone vetorial (drawable) centralizado no botão. */
+    private fun drawIcon(canvas: Canvas, iconRes: Int, rect: RectF, active: Boolean) {
+        var d = iconCache.get(iconRes)
+        if (d == null) {
+            d = context.getDrawable(iconRes)?.mutate() ?: return
+            iconCache.put(iconRes, d)
+        }
+        val side = rect.width() * 0.52f
+        val l = rect.centerX() - side / 2f
+        val t = rect.centerY() - side / 2f
+        d.setBounds(l.toInt(), t.toInt(), (l + side).toInt(), (t + side).toInt())
+        d.setTint(Color.argb(if (active) 255 else 205, 255, 255, 255))
+        d.alpha = if (active) 255 else 205
+        d.draw(canvas)
+    }
+
+    /** true se o ponto cai num botão ou no menu (usado p/ rotear o touch). */
+    fun hitControl(x: Float, y: Float): Boolean =
+        menuRect.contains(x, y) || findButtonAt(x, y) != null
+
     private fun labelSizeFor(b: ButtonCfg): Float {
         val rect = rectOf(b)
         val base = rect.width() * if (b.label.length > 1) 0.20f else 0.40f
@@ -358,6 +421,7 @@ class ControlsOverlayView @JvmOverloads constructor(
             invalidate()
             return true
         }
+        routeScreenTouch(event)
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN,
             MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP,
@@ -374,6 +438,41 @@ class ControlsOverlayView @JvmOverloads constructor(
             }
         }
         return true
+    }
+
+    /** Repassa ao jogo os toques na área do vídeo (fora de botões) —
+     *  é o que faz a tela sensível ao toque do Nintendo DS funcionar. */
+    private fun routeScreenTouch(event: MotionEvent) {
+        val cb = onScreenTouch ?: return
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                val i = event.actionIndex
+                val x = event.getX(i)
+                val y = event.getY(i)
+                if (!hitControl(x, y)) {
+                    screenPointerId = event.getPointerId(i)
+                    cb(x, y, MotionEvent.ACTION_DOWN)
+                }
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (screenPointerId >= 0) {
+                    val pi = event.findPointerIndex(screenPointerId)
+                    if (pi >= 0) cb(event.getX(pi), event.getY(pi), MotionEvent.ACTION_MOVE)
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP,
+            MotionEvent.ACTION_CANCEL -> {
+                if (screenPointerId >= 0) {
+                    val pi = event.findPointerIndex(screenPointerId)
+                    if (pi >= 0) {
+                        cb(event.getX(pi), event.getY(pi), MotionEvent.ACTION_UP)
+                    } else {
+                        cb(-1f, -1f, MotionEvent.ACTION_UP)
+                    }
+                    screenPointerId = -1
+                }
+            }
+        }
     }
 
     // -------------------------------------------------------------- edição

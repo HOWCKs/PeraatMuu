@@ -29,6 +29,15 @@ class LibraryController extends ChangeNotifier {
   final List<GameEntry> games = [];
   final List<String> folders = [];
 
+  /// Escolha manual de console por arquivo, para extensões ambíguas
+  /// (ex.: .iso serve para PS1 e PSP). Chave = caminho do arquivo.
+  final Map<String, String> fileOverrides = {};
+
+  /// Pergunta à UI qual console usar num arquivo ambíguo (configurada
+  /// temporariamente pelos fluxos de adicionar ROM).
+  Future<String?> Function(String path, List<ConsoleSystem> candidates)?
+      overrideChooser;
+
   bool loading = true;
   bool scanning = false;
   String? lastError;
@@ -64,6 +73,10 @@ class LibraryController extends ChangeNotifier {
       ..addAll((raw['games'] as List<dynamic>? ?? []).map(
         (e) => GameEntry.fromJson(e as Map<String, dynamic>),
       ));
+    fileOverrides
+      ..clear()
+      ..addAll((raw['overrides'] as Map<String, dynamic>? ?? {})
+          .map((k, v) => MapEntry(k, v.toString())));
   }
 
   Future<void> _save() async {
@@ -72,6 +85,7 @@ class LibraryController extends ChangeNotifier {
     final payload = jsonEncode({
       'folders': folders,
       'games': games.map((g) => g.toJson()).toList(),
+      'overrides': fileOverrides,
     });
     await file.writeAsString(payload);
   }
@@ -167,10 +181,12 @@ class LibraryController extends ChangeNotifier {
         final dest = File('${importDir.path}/$name');
         if (dest.existsSync()) dest.deleteSync();
         file = await file.copy(dest.path);
+        await _maybeOverride(path: dest.path);
         parentDirs.add(importDir.path);
         importedAny = true;
         continue;
       }
+      await _maybeOverride(path: path);
       final slash = path.lastIndexOf('/');
       if (slash <= 0) continue;
       parentDirs.add(path.substring(0, slash));
@@ -186,6 +202,20 @@ class LibraryController extends ChangeNotifier {
       lastError = 'Arquivo importado, mas não reconhecido como ROM.';
     }
     return added;
+  }
+
+  /// Extensão com mais de um dono? Pergunta ao usuário (via UI) e grava.
+  Future<void> _maybeOverride({required String path}) async {
+    final chooser = overrideChooser;
+    if (chooser == null) return;
+    final dot = path.lastIndexOf('.');
+    if (dot < 0) return;
+    final candidates = systemsForExtension(path.substring(dot + 1));
+    if (candidates.length < 2) return;
+    final chosen = await chooser(path, candidates);
+    if (chosen != null && chosen.isNotEmpty) {
+      fileOverrides[path] = chosen;
+    }
   }
 
   /// Varre todas as pastas monitoradas. Retorna quantas ROMs NOVAS entraram.
@@ -213,9 +243,10 @@ class LibraryController extends ChangeNotifier {
           if (dot < 0) continue;
           final ext = path.substring(dot + 1).toLowerCase();
           // ".zip" é avaliado pelo CONTEÚDO (ROMs baixadas quase sempre vêm zipadas).
+          // Escolha manual do usuário vence a inferência por extensão.
           final systemId = ext == 'zip'
               ? await detectSystemInZip(path)
-              : kExtensionToSystem[ext];
+              : (fileOverrides[path] ?? kExtensionToSystem[ext]);
           if (systemId == null) continue;
           if (known.contains(path)) continue;
           try {

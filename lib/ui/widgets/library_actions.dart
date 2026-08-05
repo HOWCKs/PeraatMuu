@@ -1,8 +1,81 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/console_system.dart';
 import '../../state/library_controller.dart';
 import '../../theme/app_theme.dart';
+
+/// Diálogo "de qual console é este arquivo?" — extensões ambíguas
+/// (.iso/.pbp servem para mais de um console).
+Future<String?> _pickSystemFor(
+  BuildContext context,
+  String path,
+  List<ConsoleSystem> candidates,
+) {
+  final fileName = path.split('/').last;
+  return showDialog<String>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: AppTheme.card,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      title: Text('QUAL CONSOLE?', style: AppTheme.display(14)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            fileName,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: AppTheme.textMid, fontSize: 13),
+          ),
+          const SizedBox(height: 12),
+          for (final s in candidates)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => Navigator.of(ctx).pop(s.id),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        s.gradient.first.withValues(alpha: 0.30),
+                        s.gradient.last.withValues(alpha: 0.30),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: s.gradient.first.withValues(alpha: 0.6)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(s.icon, color: Colors.white, size: 22),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          s.name,
+                          style: const TextStyle(
+                            color: AppTheme.textHigh,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right_rounded,
+                          color: AppTheme.textMid),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+}
 
 /// Menu "de onde vêm as ROMs?": escolher ARQUIVO(s) (toca direto na ROM)
 /// ou PASTA inteira (varre tudo de uma vez).
@@ -90,7 +163,13 @@ Future<void> addSingleRom(BuildContext context) async {
   final messenger = ScaffoldMessenger.maybeOf(context);
   final library = context.read<LibraryController>();
 
+  // Extensões ambíguas (.iso, .pbp...) perguntam o console antes de varrer.
+  library.overrideChooser = (path, candidates) async {
+    if (!context.mounted) return null;
+    return _pickSystemFor(context, path, candidates);
+  };
   final result = await library.addSingleFile();
+  library.overrideChooser = null;
   if (!context.mounted) return;
 
   if (result == -2) {
