@@ -41,6 +41,11 @@ cd PeraatMuu
 >
 > Pronto — daqui em diante, **todo push compila e gera APK baixável**.
 
+> 🧪 **Quer testar a emulação sem esperar o build?** A ponte nativa C++ roda
+> num smoke test direto no Termux:
+> `pkg install -y clang && bash tools/native_smoke/run_smoke.sh`
+> (saída esperada: `== SMOKE TEST OK ==`)
+
 ## 4. Fluxo de trabalho (editar → commit → build)
 
 ```bash

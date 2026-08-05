@@ -136,6 +136,8 @@ Detalhes: [docs/BUILD.md](docs/BUILD.md).
 │   ├── app/src/main/kotlin/ # MainActivity + GameActivity (GL/áudio/input)
 │   └── app/src/main/jniLibs/# (gerado no build) núcleos .so por ABI
 ├── tools/download_cores.sh  # Download dos núcleos libretro oficiais
+├── tools/native_smoke/      # Smoke test nativo da ponte (roda em Linux/Termux)
+├── ci/build.yml             # Workflow do GitHub Actions (ative com tools/ativar_workflow.sh)
 ├── assets/                  # Logo, banner e fontes (Audiowide/Rajdhani, OFL)
 ├── docs/TERMUX.md           # Guia passo a passo no Termux
 └── docs/BUILD.md            # Build manual, assinatura e releases

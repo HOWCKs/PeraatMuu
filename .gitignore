@@ -18,6 +18,9 @@ android/key.properties
 # Núcleos libretro baixados durante o build (CI) — não versionar binários grandes
 android/app/src/main/jniLibs/
 
+# Artefatos do smoke test nativo
+tools/native_smoke/.smoke_build/
+
 # IDE
 .idea/
 .vscode/
