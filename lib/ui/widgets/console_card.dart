@@ -43,9 +43,10 @@ class ConsoleCard extends StatelessWidget {
             boxShadow:
                 disabled || reduced ? null : AppTheme.glow(system.gradient.first),
           ),
-          clipBehavior: Clip.antiAlias,
-          child: Stack(
-            fit: StackFit.expand,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Stack(
+              fit: StackFit.expand,
             children: [
               // Arte representando o console
               Opacity(
@@ -157,6 +158,7 @@ class ConsoleCard extends StatelessWidget {
                 ),
               ),
             ],
+            ),
           ),
         ),
       ),

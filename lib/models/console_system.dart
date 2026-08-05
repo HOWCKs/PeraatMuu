@@ -421,7 +421,7 @@ const kConsoleCatalog = <ConsoleSystem>[
     coreId: 'dolphin',
     coreName: 'Dolphin',
     gradient: [Color(0xFF6A3FB5), Color(0xFF1C0F38)],
-    icon: Icons.deployed_code_rounded,
+    icon: Icons.inventory_2_rounded,
     status: ConsoleStatus.soon,
     notes:
         'O núcleo Dolphin é 64-bit only e pesado. Chega quando suportarmos '
