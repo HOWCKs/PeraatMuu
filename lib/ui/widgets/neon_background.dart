@@ -82,7 +82,8 @@ class _GridPainter extends CustomPainter {
     // Linhas horizontais com espaçamento parabólico (profundidade)
     for (var i = 0; i < 12; i++) {
       final t = i / 12;
-      final y = horizon + math.pow(t, 1.8) * (size.height - horizon);
+      final depth = math.pow(t, 1.8).toDouble();
+      final y = horizon + depth * (size.height - horizon);
       canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
     }
 
