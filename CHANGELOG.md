@@ -2,6 +2,23 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [1.1.0] - 2026-08-05
+
+### Adicionado
+- **ESCOLHER ROM (modo arquivo):** novo fluxo via seletor de ARQUIVO do
+  Android — dá pra tocar direto na ROM baixada no gerenciador, uma ou várias
+  por vez. A pasta do arquivo passa a ser monitorada automaticamente, então
+  as próximas ROMs que caírem ali aparecem sozinhas. Arquivos que o Android
+  só devolve como cópia temporária são importados para uma pasta própria.
+- Botão **+ ROMS** (início) agora pergunta: ARQUIVO (tocar na ROM) ou PASTA
+  (varrer tudo). Biblioteca vazia ganhou botão "ESCOLHER ROM" + "ADICIONAR
+  PASTA".
+
+### Corrigido
+- Seletor de PASTAS do Android não seleciona arquivos — quem tocava na ROM
+  não via nada acontecer. Agora o app mostra um aviso antes, explicando
+  para usar o botão "USAR ESTA PASTA" na parte de baixo da tela do sistema.
+
 ## [1.0.1] - 2026-08-05
 
 ### Corrigido
@@ -43,5 +60,6 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
   releases automáticas em tags `v*`.
 - Guia completo de uso via Termux (docs/TERMUX.md).
 
+[1.1.0]: https://github.com/HOWCKs/PeraatMuu/releases/tag/v1.1.0
 [1.0.1]: https://github.com/HOWCKs/PeraatMuu/releases/tag/v1.0.1
 [1.0.0]: https://github.com/HOWCKs/PeraatMuu/releases/tag/v1.0.0

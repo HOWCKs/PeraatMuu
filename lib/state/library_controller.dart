@@ -125,6 +125,69 @@ class LibraryController extends ChangeNotifier {
     return found;
   }
 
+  /// Abre o seletor de ARQUIVO do Android (permite tocar direto na ROM!).
+  /// Cada arquivo escolhido registra automaticamente a pasta onde ele está
+  /// na lista monitorada — futuras ROMs naquela pasta passam a aparecer
+  /// sozinhas. Arquivos que o Android só entrega como cópia temporária são
+  /// importados para uma pasta própria do app.
+  /// Retorna quantos jogos novos entraram, -1 = cancelou, -2 = sem permissão.
+  Future<int> addSingleFile() async {
+    final allowed = await ensureStoragePermission();
+    if (!allowed) {
+      lastError = 'Permissão de armazenamento negada.';
+      notifyListeners();
+      return -2;
+    }
+    final result = await FilePicker.platform.pickFiles(
+      dialogTitle: 'Escolha suas ROMs',
+      type: FileType.custom,
+      allowedExtensions: kRomFileExtensions,
+      allowMultiple: true,
+    );
+    if (result == null || result.count == 0) return -1;
+
+    final parentDirs = <String>{};
+    var importedAny = false;
+    final cacheRoot = (await getTemporaryDirectory()).path;
+
+    for (final picked in result.files) {
+      final raw = picked.path;
+      if (raw == null || raw.isEmpty) continue;
+      var path = normalizePickedPath(raw) ?? raw;
+      var file = File(path);
+      if (!file.existsSync()) continue;
+
+      if (path.startsWith(cacheRoot)) {
+        // Cópia temporária do SAF: importa para pasta própria monitorada.
+        final docs = await getApplicationDocumentsDirectory();
+        final importDir = Directory('${docs.path}/roms_import')
+          ..createSync(recursive: true);
+        final name =
+            picked.name.isNotEmpty ? picked.name : file.uri.pathSegments.last;
+        final dest = File('${importDir.path}/$name');
+        if (dest.existsSync()) dest.deleteSync();
+        file = await file.copy(dest.path);
+        parentDirs.add(importDir.path);
+        importedAny = true;
+        continue;
+      }
+      final slash = path.lastIndexOf('/');
+      if (slash <= 0) continue;
+      parentDirs.add(path.substring(0, slash));
+    }
+
+    if (parentDirs.isEmpty) return -1;
+    for (final dir in parentDirs) {
+      if (!folders.contains(dir)) folders.add(dir);
+    }
+    final added = await rescanAll();
+    // Se só importamos cópias e nada entrou, ao menos avise.
+    if (added == 0 && importedAny) {
+      lastError = 'Arquivo importado, mas não reconhecido como ROM.';
+    }
+    return added;
+  }
+
   /// Varre todas as pastas monitoradas. Retorna quantas ROMs NOVAS entraram.
   Future<int> rescanAll() async {
     if (scanning) return 0;

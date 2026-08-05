@@ -327,3 +327,16 @@ List<String> get kUniqueCoreIds {
   }
   return ids.toList();
 }
+
+/// Extensões de ROM aceitas no seletor de arquivo único
+/// (inclui o contêiner .zip). Usada pelo FilePicker.
+List<String> get kRomFileExtensions {
+  final exts = <String>{'zip'};
+  for (final system in kConsoleCatalog) {
+    if (system.status == ConsoleStatus.soon) continue;
+    for (final ext in system.extensions) {
+      exts.add(ext.toLowerCase());
+    }
+  }
+  return exts.toList()..sort();
+}

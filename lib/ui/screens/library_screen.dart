@@ -104,7 +104,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ),
         Expanded(
           child: results.isEmpty
-              ? _LibraryEmpty(onAdd: () => addRomsFolder(context))
+              ? _LibraryEmpty(
+                  onAddFile: () => addSingleRom(context),
+                  onAddFolder: () => addRomsFolder(context),
+                )
               : ListView.builder(
                   physics: const BouncingScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 110),
@@ -168,9 +171,10 @@ class _FilterChip extends StatelessWidget {
 }
 
 class _LibraryEmpty extends StatelessWidget {
-  final VoidCallback onAdd;
+  final VoidCallback onAddFile;
+  final VoidCallback onAddFolder;
 
-  const _LibraryEmpty({required this.onAdd});
+  const _LibraryEmpty({required this.onAddFile, required this.onAddFolder});
 
   @override
   Widget build(BuildContext context) {
@@ -199,18 +203,40 @@ class _LibraryEmpty extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             const Text(
-              'Adicione a pasta onde suas ROMs estão guardadas e o PeraatMuu organiza tudo automaticamente.',
+              'Escolha uma ROM direto no gerenciador de arquivos, ou adicione a '
+              'pasta onde suas ROMs estão guardadas e o PeraatMuu organiza tudo '
+              'automaticamente.',
               textAlign: TextAlign.center,
               style: TextStyle(color: AppTheme.textMid, fontSize: 14),
             ),
             const SizedBox(height: 20),
             ElevatedButton.icon(
-              onPressed: onAdd,
-              icon: const Icon(Icons.folder_open_rounded),
-              label: const Text('ADICIONAR PASTA'),
+              onPressed: onAddFile,
+              icon: const Icon(Icons.videogame_asset_rounded),
+              label: const Text('ESCOLHER ROM'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.neon,
                 foregroundColor: Colors.black,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 22, vertical: 13),
+                textStyle: const TextStyle(
+                  fontFamily: 'Audiowide',
+                  fontSize: 11,
+                  letterSpacing: 1.2,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: onAddFolder,
+              icon: const Icon(Icons.folder_open_rounded),
+              label: const Text('ADICIONAR PASTA'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.neon,
+                side: const BorderSide(color: AppTheme.neon),
                 padding:
                     const EdgeInsets.symmetric(horizontal: 22, vertical: 13),
                 textStyle: const TextStyle(

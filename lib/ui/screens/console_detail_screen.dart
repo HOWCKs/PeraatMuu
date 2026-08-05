@@ -55,9 +55,9 @@ class ConsoleDetailScreen extends StatelessWidget {
                         children: [
                           Expanded(
                             child: ElevatedButton.icon(
-                              onPressed: () => addRomsFolder(context),
-                              icon: const Icon(Icons.folder_open_rounded),
-                              label: const Text('BUSCAR ROMS'),
+                              onPressed: () => chooseRomSource(context),
+                              icon: const Icon(Icons.add_rounded),
+                              label: const Text('ADICIONAR JOGOS'),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppTheme.neon,
                                 foregroundColor: Colors.black,

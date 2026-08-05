@@ -34,7 +34,7 @@ class HomeScreen extends StatelessWidget {
         _HeroHeader(
           gamesCount: library.games.length,
           coresReady: cores.readyCount,
-          onAddRoms: () => addRomsFolder(context),
+          onAddRoms: () => chooseRomSource(context),
         ),
         if (library.games.isEmpty) _EmptyLibraryCard(),
         const SectionHeader(title: 'Consoles em destaque'),
