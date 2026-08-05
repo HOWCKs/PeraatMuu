@@ -151,7 +151,7 @@ Detalhes: [docs/BUILD.md](docs/BUILD.md).
 - [ ] Renderização por hardware (OpenGL/Vulkan) → N64, PSP, DS
 - [ ] Shaders (CRT, scanlines)
 - [ ] Capas automáticas dos jogos
-- [ ] Detecção de ROMs compactadas (.zip/.7z)
+- [x] Detecção de ROMs compactadas (.zip) — reconhecimento pelo conteúdo e extração automática na primeira jogada (v1.0.1)
 
 ---
 

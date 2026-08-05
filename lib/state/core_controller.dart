@@ -27,9 +27,8 @@ class CoreController extends ChangeNotifier {
 
       availability.clear();
       for (final coreId in kUniqueCoreIds) {
-        availability[coreId] = await EmulatorBridge.isCoreAvailable(
-          '${coreId}_libretro_android.so',
-        );
+        availability[coreId] =
+            await EmulatorBridge.isCoreAvailable(coreFileName(coreId));
       }
     } catch (_) {
       // Canal indisponível (ex.: rodando fora do Android) — mantém padrões.

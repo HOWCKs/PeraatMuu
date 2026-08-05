@@ -7,6 +7,7 @@ import '../models/game_entry.dart';
 import '../state/core_controller.dart';
 import '../state/library_controller.dart';
 import 'emulator_bridge.dart';
+import 'zip_rom.dart';
 
 /// Fluxo único para abrir um jogo: valida console, núcleo e ROM antes de
 /// chamar a tela nativa de emulação.
@@ -34,10 +35,25 @@ Future<void> launchGame(BuildContext context, GameEntry game) async {
     return;
   }
 
+  // ROM zipada (o mais comum ao baixar da internet): extrai para o cache
+  // na primeira jogada. Arcade é exceção — o FinalBurn lê o .zip direto.
+  var romPath = game.path;
+  if (game.path.toLowerCase().endsWith('.zip') && system.id != 'arcade') {
+    messenger?.showSnackBar(
+      const SnackBar(content: Text('Extraindo a ROM (só na primeira vez)...')),
+    );
+    final prepared = await extractZipRom(game.path, system.id);
+    if (prepared == null) {
+      warn('Não consegui ler essa ROM zipada. Tente descompactá-la primeiro.');
+      return;
+    }
+    romPath = prepared;
+  }
+
   try {
     await EmulatorBridge.play(
       corePath: corePath,
-      romPath: game.path,
+      romPath: romPath,
       systemId: system.id,
     );
     library.markPlayed(game);

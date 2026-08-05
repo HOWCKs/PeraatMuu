@@ -1,5 +1,9 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
 
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../state/library_controller.dart';
 import '../../theme/app_theme.dart';
 import '../widgets/neon_background.dart';
 import 'consoles_screen.dart';
@@ -15,7 +19,7 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int _index = 0;
 
   final _pages = const [
@@ -24,6 +28,29 @@ class _HomeShellState extends State<HomeShell> {
     LibraryScreen(),
     SettingsScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Quando o usuário volta ao app (ex.: depois de baixar uma ROM pelo
+  /// navegador ou pelo gerenciador de arquivos), revarremos as pastas
+  /// monitoradas — o jogo novo aparece na biblioteca automaticamente.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    final library = context.read<LibraryController>();
+    unawaited(library.pruneMissing());
+    unawaited(library.rescanAll());
+  }
 
   @override
   Widget build(BuildContext context) {

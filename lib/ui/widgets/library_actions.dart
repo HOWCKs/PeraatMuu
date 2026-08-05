@@ -24,9 +24,20 @@ Future<void> addRomsFolder(BuildContext context) async {
         ),
       ),
     );
+  } else if (result == -3) {
+    messenger?.showSnackBar(
+      SnackBar(
+        content: Text(library.lastError ?? 'Pasta não suportada.'),
+      ),
+    );
   } else if (result == 0) {
     messenger?.showSnackBar(
-      const SnackBar(content: Text('Nenhuma ROM nova encontrada nesta pasta.')),
+      const SnackBar(
+        content: Text(
+          'Nenhuma ROM nova encontrada nesta pasta. '
+          'Valem .gb, .gbc, .nes, .sfc, .gba, .bin, .smc... soltos ou em .zip!',
+        ),
+      ),
     );
   } else if (result > 0) {
     messenger?.showSnackBar(

@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'app.dart';
+import 'services/zip_rom.dart';
 import 'state/core_controller.dart';
 import 'state/library_controller.dart';
 
@@ -16,6 +19,8 @@ void main() {
       systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
+  // Faxina sem bloquear o boot: apaga extrações de ROM com mais de 7 dias.
+  unawaited(cleanZipRomCache());
   runApp(
     MultiProvider(
       providers: [

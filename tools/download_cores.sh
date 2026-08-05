@@ -25,15 +25,19 @@ for abi in $ABIS; do
   mkdir -p "$OUT_DIR/$abi"
   for core in $CORES; do
     file="${core}_libretro_android.so"
-    dest="$OUT_DIR/$abi/$file"
+    # IMPORTANTE: o Android só extrai libs com prefixo "lib" de lib/<abi>/ para
+    # nativeLibraryDir. Sem isso o núcleo vai no APK mas some no dispositivo.
+    out="lib${core}_libretro_android.so"
+    dest="$OUT_DIR/$abi/$out"
     if [ -f "$dest" ]; then
-      echo "  [cache] $abi/$file"
+      echo "  [cache] $abi/$out"
       continue
     fi
     url="$BASE_URL/$abi/$file.zip"
     echo "  [baixando] $url"
     if curl -fSL --retry 3 --connect-timeout 20 -o "$TMP_DIR/$file.zip" "$url"; then
-      unzip -o -j "$TMP_DIR/$file.zip" "$file" -d "$OUT_DIR/$abi" >/dev/null
+      unzip -o -j "$TMP_DIR/$file.zip" "$file" -d "$TMP_DIR" >/dev/null
+      mv "$TMP_DIR/$file" "$dest"
       rm -f "$TMP_DIR/$file.zip"
     else
       # Núcleo indisponível para esta ABI — apenas avisa; o app marca o console como indisponível.

@@ -9,6 +9,20 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../models/console_system.dart';
 import '../models/game_entry.dart';
+import '../services/zip_rom.dart';
+
+/// Converte o resultado do seletor de pastas em caminho real do sistema.
+/// No Android o seletor pode devolver uma URI content:// (SAF); este helper
+/// mapeia pastas do armazenamento interno para /storage/emulated/0/...
+/// Retorna null quando não conseguimos resolver (ex.: cartão SD externo).
+String? normalizePickedPath(String picked) {
+  if (!picked.startsWith('content://')) return picked;
+  final decoded = Uri.decodeComponent(picked);
+  final match = RegExp(r'/tree/primary:(.*)$').firstMatch(decoded);
+  if (match == null) return null;
+  final sub = match.group(1)!;
+  return sub.isEmpty ? '/storage/emulated/0' : '/storage/emulated/0/$sub';
+}
 
 /// Biblioteca de ROMs do usuário: pastas monitoradas, varredura e persistência.
 class LibraryController extends ChangeNotifier {
@@ -94,9 +108,16 @@ class LibraryController extends ChangeNotifier {
       notifyListeners();
       return -2;
     }
-    final path = await FilePicker.platform
+    final picked = await FilePicker.platform
         .getDirectoryPath(dialogTitle: 'Escolha a pasta de ROMs');
-    if (path == null || path.isEmpty) return -1;
+    if (picked == null || picked.isEmpty) return -1;
+    final path = normalizePickedPath(picked);
+    if (path == null) {
+      lastError = 'Não foi possível acessar essa pasta. '
+          'Escolha uma pasta do armazenamento interno (ex.: Download).';
+      notifyListeners();
+      return -3;
+    }
     if (!folders.contains(path)) {
       folders.add(path);
     }
@@ -128,7 +149,10 @@ class LibraryController extends ChangeNotifier {
           final dot = path.lastIndexOf('.');
           if (dot < 0) continue;
           final ext = path.substring(dot + 1).toLowerCase();
-          final systemId = kExtensionToSystem[ext];
+          // ".zip" é avaliado pelo CONTEÚDO (ROMs baixadas quase sempre vêm zipadas).
+          final systemId = ext == 'zip'
+              ? await detectSystemInZip(path)
+              : kExtensionToSystem[ext];
           if (systemId == null) continue;
           if (known.contains(path)) continue;
           try {

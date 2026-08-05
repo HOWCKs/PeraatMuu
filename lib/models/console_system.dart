@@ -22,7 +22,7 @@ class ConsoleSystem {
   final List<String> extensions;
 
   /// Nome base do núcleo no buildbot libretro (ex.: `snes9x`).
-  /// O arquivo final é `<coreId>_libretro_android.so`.
+  /// O arquivo final é `lib<coreId>_libretro_android.so` (ver [coreFileName]).
   /// IMPORTANTE: manter em sincronia com tools/download_cores.sh.
   final String? coreId;
 
@@ -51,11 +51,17 @@ class ConsoleSystem {
     this.notes = '',
   });
 
-  String get coreFile =>
-      coreId == null ? '' : '${coreId}_libretro_android.so';
+  String get coreFile => coreId == null ? '' : coreFileName(coreId!);
 
   bool get playable => status != ConsoleStatus.soon && coreId != null;
 }
+
+/// Nome do arquivo do núcleo embutido no APK.
+///
+/// O prefixo `lib` é OBRIGATÓRIO: o gerenciador de pacotes do Android só
+/// extrai arquivos `lib*.so` de `lib/<abi>/` para `nativeLibraryDir`
+/// (usado pelo dlopen da ponte nativa).
+String coreFileName(String coreId) => 'lib${coreId}_libretro_android.so';
 
 /// Catálogo oficial de consoles do PeraatMuu.
 const kConsoleCatalog = <ConsoleSystem>[
@@ -299,11 +305,14 @@ ConsoleSystem? consoleById(String id) {
 
 /// Mapa extensão (minúscula, sem ponto) -> id do sistema.
 /// Sistemas "em breve" não são mapeados para evitar conflitos (ex.: .iso).
+/// ".zip" também não: é um contêiner, inspecionado dinamicamente
+/// (ver services/zip_rom.dart — ROM zipada é reconhecida pelo conteúdo).
 final Map<String, String> kExtensionToSystem = () {
   final map = <String, String>{};
   for (final system in kConsoleCatalog) {
     if (system.status == ConsoleStatus.soon) continue;
     for (final ext in system.extensions) {
+      if (ext.toLowerCase() == 'zip') continue;
       map.putIfAbsent(ext.toLowerCase(), () => system.id);
     }
   }
