@@ -30,4 +30,12 @@ echo "[2/3] Compilando ponte retrobridge + harness..."
   -o "$BUILD/harness" -ldl -lpthread
 
 echo "[3/3] Executando..."
-"$BUILD/harness" "$PWD/$BUILD"
+"$BUILD/harness" "$PWD/$BUILD" | tee "$BUILD/out.log"
+
+# O modo de entrega depende da extensão: .bin é cartucho → memória.
+if grep -q "\[fakecore\] mode=memory" "$BUILD/out.log"; then
+  echo "  PASS  conteúdo entregue em memória (data+size)"
+else
+  echo "  FAIL  esperado modo memória para .bin"
+  exit 1
+fi

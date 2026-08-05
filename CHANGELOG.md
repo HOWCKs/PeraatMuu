@@ -2,6 +2,17 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [1.1.1] - 2026-08-05
+
+### Corrigido
+- **"O núcleo não conseguiu abrir esta ROM" (crítico):** o gambatte atual do
+  buildbot libretro só aceita a ROM entregue em MEMÓRIA (`data`+`size`) e
+  recusava silenciosamente o modo arquivo (`path`). A ponte nativa agora
+  entrega o conteúdo em memória para cartuchos (GB, NES, GBA, SNES, MD...)
+  e em streaming por caminho para conteúdo de CD/pesado (.cue/.chd/.iso/.zip),
+  com retentativa automática no modo alternativo se o núcleo recusar.
+  Smoke test nativo valida o modo de entrega por extensão.
+
 ## [1.1.0] - 2026-08-05
 
 ### Adicionado
@@ -60,6 +71,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
   releases automáticas em tags `v*`.
 - Guia completo de uso via Termux (docs/TERMUX.md).
 
+[1.1.1]: https://github.com/HOWCKs/PeraatMuu/releases/tag/v1.1.1
 [1.1.0]: https://github.com/HOWCKs/PeraatMuu/releases/tag/v1.1.0
 [1.0.1]: https://github.com/HOWCKs/PeraatMuu/releases/tag/v1.0.1
 [1.0.0]: https://github.com/HOWCKs/PeraatMuu/releases/tag/v1.0.0

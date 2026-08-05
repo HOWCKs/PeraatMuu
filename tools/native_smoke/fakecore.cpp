@@ -20,6 +20,12 @@ static input_t g_input;
 static unsigned g_frame_no = 0;
 static uint16_t g_fb[320 * 240];
 static uint8_t g_sram[128];
+static const void* g_last_data = nullptr;
+static size_t g_last_size = 0;
+
+// Sondas para o harness: como o frontend entregou o conteúdo?
+const void* fakecore_last_data(void) { return g_last_data; }
+size_t fakecore_last_size(void) { return g_last_size; }
 
 void retro_set_environment(env_t cb) { g_env = cb; }
 void retro_set_video_refresh(video_t cb) { g_video = cb; }
@@ -51,6 +57,9 @@ void retro_get_system_av_info(AvInfo* av) {
 struct GameInfo { const char* path; const void* data; size_t size; const char* meta; };
 bool retro_load_game(const GameInfo* info) {
     printf("[fakecore] load_game: %s\n", info->path);
+    g_last_data = info->data;
+    g_last_size = info->size;
+    printf("[fakecore] mode=%s size=%zu\n", info->data ? "memory" : "stream", info->size);
     unsigned fmt = 2; // RGB565
     if (!g_env(10, &fmt)) { printf("[fakecore] SET_PIXEL_FORMAT rejeitado!\n"); return false; }
     const char* sys = nullptr; g_env(9, &sys);

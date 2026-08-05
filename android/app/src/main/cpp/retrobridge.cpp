@@ -220,6 +220,14 @@ static std::string g_sys_dir;
 static std::string g_save_dir;
 static int g_sample_rate = 44100;
 
+// Conteúdo da ROM carregada em memória. Deve permanecer VÁLIDO até
+// retro_unload_game (vários núcleos guardam ponteiros para ele).
+static std::vector<uint8_t> g_rom_data;
+
+// Tamanho máximo de ROM carregada em memória (cartuchos são pequenos;
+// conteúdo de CD/ISO fica no modo streaming por caminho).
+static const size_t ROM_MEMORY_MAX = 96ull << 20;
+
 // ---------------------------------------------------------------------------
 // Utilidades de arquivo
 // ---------------------------------------------------------------------------
@@ -599,16 +607,67 @@ Java_com_peraatmuu_app_emulator_RetroBridge_nativeLoadGame(
     if (!g_core.handle) return JNI_FALSE;
     JStr rom(env, romPath);
 
+    // Dois modos de entrega do conteúdo (a ABI libretro aceita os dois,
+    // mas cada núcleo exige um deles — ex.: o gambatte atual SÓ aceita
+    // data+size em memória; núcleos de CD/arcade como pcsx e fbneo SÓ
+    // aceitam arquivo por caminho). Tentamos o modo primário pela
+    // extensão e, se o núcleo recusar, retentamos no outro modo.
+    const char *ext = strrchr(rom.c(), '.');
+    bool streaming = false;
+    if (ext) {
+        char e[8] = {0};
+        size_t n = strlen(ext + 1);
+        if (n < sizeof(e)) {
+            for (size_t i = 0; i <= n; ++i) e[i] = (char)tolower((unsigned char)ext[1 + i]);
+            streaming = !strcmp(e, "cue") || !strcmp(e, "chd") || !strcmp(e, "pbp") ||
+                        !strcmp(e, "iso") || !strcmp(e, "img") || !strcmp(e, "zip") ||
+                        !strcmp(e, "m3u") || !strcmp(e, "cso");
+        }
+    }
+
     retro_game_info info{};
     info.path = rom.c();
-    info.data = nullptr;
-    info.size = 0;
     info.meta = nullptr;
 
-    if (!g_core.retro_load_game(&info)) {
+    auto fill_memory = [&]() -> bool {
+        g_rom_data.clear();
+        if (!read_file(rom.c(), g_rom_data) || g_rom_data.size() > ROM_MEMORY_MAX) {
+            g_rom_data.clear();
+            return false;
+        }
+        info.data = g_rom_data.data();
+        info.size = g_rom_data.size();
+        return true;
+    };
+
+    auto fill_stream = [&]() {
+        g_rom_data.clear();
+        info.data = nullptr;
+        info.size = 0;
+    };
+
+    bool ok = streaming ? (fill_stream(), g_core.retro_load_game(&info))
+                        : (fill_memory() && g_core.retro_load_game(&info));
+
+    if (!ok) {
+        LOGW("retro_load_game recusou no modo %s — retentando no outro modo",
+             streaming ? "streaming" : "memória");
+        if (streaming) {
+            ok = fill_memory() && g_core.retro_load_game(&info);
+        } else {
+            fill_stream();
+            ok = g_core.retro_load_game(&info);
+        }
+    }
+
+    if (!ok) {
         LOGE("retro_load_game falhou para %s", rom.c());
+        g_rom_data.clear();
         return JNI_FALSE;
     }
+    LOGI("ROM carregada (%s, %zu bytes %s)", rom.c(),
+         info.data ? info.size : (size_t)0,
+         info.data ? "em memória" : "via streaming");
 
     retro_system_av_info av{};
     g_core.retro_get_system_av_info(&av);
@@ -660,6 +719,8 @@ Java_com_peraatmuu_app_emulator_RetroBridge_nativeUnload(JNIEnv *env, jclass cla
         dlclose(g_core.handle);
         g_core.handle = nullptr;
     }
+    g_rom_data.clear();
+    g_rom_data.shrink_to_fit();
     g_loaded = false;
 }
 
