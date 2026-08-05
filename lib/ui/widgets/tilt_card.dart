@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../state/app_settings.dart';
+import '../../state/app_settings.dart';
 
 /// Card com efeito 3D: inclina em perspectiva conforme o arrasto do dedo
 /// e retorna suavemente ao centro ao soltar. Quando "efeitos reduzidos"
