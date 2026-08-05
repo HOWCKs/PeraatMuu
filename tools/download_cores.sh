@@ -14,7 +14,8 @@ ABIS="${ABIS:-arm64-v8a armeabi-v7a x86_64}"
 # Núcleos — MANTER EM SINCRONIA com lib/models/console_system.dart (campo coreId)
 CORES="${CORES:-stella nestopia genesis_plus_gx mednafen_pce_fast gambatte snes9x mednafen_lynx mednafen_ngp mednafen_wswan mgba fbneo pcsx_rearmed}"
 
-BASE_URL="https://buildbot.libretro.com/nightly/android/latest"
+# Permite override para testes locais (ex.: BASE_URL=file:///tmp/cores_fixture)
+BASE_URL="${BASE_URL:-https://buildbot.libretro.com/nightly/android/latest}"
 OUT_DIR="$(dirname "$0")/../android/app/src/main/jniLibs"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
