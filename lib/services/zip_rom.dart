@@ -140,7 +140,7 @@ Future<String?> extractZipRom(
     for (final entry in archive.files) {
       if (!entry.isFile) continue;
       final data = entry.readBytes();
-      if (data.isEmpty) continue;
+      if (data == null || data.isEmpty) continue;
       final dest = File('${outDir.path}/${entry.name.split('/').last}');
       dest.parent.createSync(recursive: true);
       dest.writeAsBytesSync(data, flush: false);

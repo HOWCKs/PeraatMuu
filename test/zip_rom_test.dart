@@ -9,7 +9,7 @@ Future<File> _makeZip(Map<String, List<int>> entries, String id) async {
   entries.forEach((name, data) {
     archive.addFile(ArchiveFile(name, data.length, data));
   });
-  final bytes = ZipEncoder().encode(archive)!;
+  final bytes = ZipEncoder().encode(archive);
   final file = File(
       '${Directory.systemTemp.path}${Platform.pathSeparator}peraatmuu_test_$id.zip');
   await file.writeAsBytes(bytes, flush: true);
