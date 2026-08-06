@@ -37,13 +37,23 @@ class GameActivity : Activity() {
         private const val EXTRA_CORE = "corePath"
         private const val EXTRA_ROM = "romPath"
         private const val EXTRA_SYSTEM = "systemId"
+        private const val EXTRA_OPT_KEYS = "coreOptionKeys"
+        private const val EXTRA_OPT_VALS = "coreOptionVals"
         private const val REQ_PICK_BUTTON_IMAGE = 71
 
-        fun createIntent(context: Context, corePath: String, romPath: String, systemId: String): Intent =
+        fun createIntent(
+            context: Context,
+            corePath: String,
+            romPath: String,
+            systemId: String,
+            coreOptions: Map<String, String> = emptyMap(),
+        ): Intent =
             Intent(context, GameActivity::class.java).apply {
                 putExtra(EXTRA_CORE, corePath)
                 putExtra(EXTRA_ROM, romPath)
                 putExtra(EXTRA_SYSTEM, systemId)
+                putStringArrayListExtra(EXTRA_OPT_KEYS, ArrayList(coreOptions.keys))
+                putStringArrayListExtra(EXTRA_OPT_VALS, ArrayList(coreOptions.values))
             }
 
         private val BG = Color.parseColor("#12121F")
@@ -97,6 +107,8 @@ class GameActivity : Activity() {
         KeyEvent.KEYCODE_BUTTON_X to ControlsOverlayView.BTN_X,
         KeyEvent.KEYCODE_BUTTON_L1 to ControlsOverlayView.BTN_L,
         KeyEvent.KEYCODE_BUTTON_R1 to ControlsOverlayView.BTN_R,
+        KeyEvent.KEYCODE_BUTTON_L2 to ControlsOverlayView.BTN_L2,
+        KeyEvent.KEYCODE_BUTTON_R2 to ControlsOverlayView.BTN_R2,
         KeyEvent.KEYCODE_Z to ControlsOverlayView.BTN_B,
         KeyEvent.KEYCODE_X to ControlsOverlayView.BTN_A,
         KeyEvent.KEYCODE_A to ControlsOverlayView.BTN_Y,
@@ -135,6 +147,14 @@ class GameActivity : Activity() {
             finish()
             return
         }
+
+        // Opções de núcleo escolhidas no app (por console) — aplicadas
+        // ANTES do loadGame, quando o núcleo pergunta via GET_VARIABLE.
+        val optKeys = intent.getStringArrayListExtra(EXTRA_OPT_KEYS).orEmpty()
+        val optVals = intent.getStringArrayListExtra(EXTRA_OPT_VALS).orEmpty()
+        for (i in 0 until minOf(optKeys.size, optVals.size)) {
+            RetroBridge.nativeSetCoreOption(optKeys[i], optVals[i])
+        }
         touchEnabled = systemId in TOUCH_SYSTEMS
 
         renderer = EmulatorRenderer()
@@ -151,6 +171,7 @@ class GameActivity : Activity() {
         }
 
         controls = ControlsOverlayView(this).apply {
+            systemId = this@GameActivity.systemId  // layout padrão e salvos por console
             onButtonsChanged = { mask ->
                 virtualMask = mask
                 pushMask()

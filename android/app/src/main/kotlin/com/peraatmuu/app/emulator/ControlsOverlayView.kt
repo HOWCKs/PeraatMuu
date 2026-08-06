@@ -46,6 +46,13 @@ class ControlsOverlayView @JvmOverloads constructor(
         const val BTN_X = 9
         const val BTN_L = 10
         const val BTN_R = 11
+        const val BTN_L2 = 12
+        const val BTN_R2 = 13
+
+        /** Consoles cujo controle original só tem 2 botões de ação. */
+        private val SIMPLE_AB_SYSTEMS = setOf(
+            "a26", "nes", "sms", "gg", "pce", "gb", "lynx", "ngp", "wswan",
+        )
 
         /** Preset do editor: texto (iconRes=0) ou ícone vetorial. */
         data class Preset(val label: String, val iconRes: Int = 0)
@@ -90,6 +97,17 @@ class ControlsOverlayView @JvmOverloads constructor(
     var onButtonsChanged: ((Int) -> Unit)? = null
     var onMenuPressed: (() -> Unit)? = null
     var onButtonEditRequested: ((ButtonCfg) -> Unit)? = null
+
+    /** Console em emulação: define o layout padrão (conjunto de botões)
+     * e ONDE o layout editado é salvo (cada console guarda o seu). */
+    var systemId: String = "generic"
+        set(value) {
+            if (field == value) return
+            field = value
+            buttons.clear()  // força reload no próximo onSizeChanged
+            loadLayout()
+            invalidate()
+        }
 
     /** Toque na área do jogo (fora dos botões): usado pela tela sensível
      * ao toque do Nintendo DS. Ação = ACTION_DOWN/MOVE/UP. */
@@ -167,6 +185,7 @@ class ControlsOverlayView @JvmOverloads constructor(
         val yellow = Color.parseColor("#F9F871")
         val pink = Color.parseColor("#FF2E88")
         val list = mutableListOf<ButtonCfg>()
+        val simpleAb = systemId in SIMPLE_AB_SYSTEMS
 
         // D-pad (esquerda) — ícones vetoriais (triângulos)
         list += ButtonCfg(BTN_UP, "▲", 0.14f, 0.585f, 0.17f, false, dAccent,
@@ -178,15 +197,28 @@ class ControlsOverlayView @JvmOverloads constructor(
         list += ButtonCfg(BTN_RIGHT, "▶", 0.225f, 0.74f, 0.17f, false, dAccent,
             icon = R.drawable.ic_ui_tri_right)
 
-        // Ações (direita) em losango
-        list += ButtonCfg(BTN_X, "X", 0.86f, 0.58f, 0.17f, true, purple)
+        // Ações (direita) em losango — consoles de 2 botões ganham só A/B
+        if (!simpleAb) {
+            list += ButtonCfg(BTN_X, "X", 0.86f, 0.58f, 0.17f, true, purple)
+            list += ButtonCfg(BTN_Y, "Y", 0.775f, 0.74f, 0.17f, true, yellow)
+        }
         list += ButtonCfg(BTN_B, "B", 0.86f, 0.90f, 0.17f, true, yellow)
-        list += ButtonCfg(BTN_Y, "Y", 0.775f, 0.74f, 0.17f, true, yellow)
         list += ButtonCfg(BTN_A, "A", 0.945f, 0.74f, 0.17f, true, pink)
 
-        // Ombros
-        list += ButtonCfg(BTN_L, "L", 0.14f, 0.085f, 0.09f, false, pink)
-        list += ButtonCfg(BTN_R, "R", 0.86f, 0.085f, 0.09f, false, pink)
+        // Ombros: consoles 8/16-bit simples não tinham
+        if (!simpleAb) {
+            list += ButtonCfg(BTN_L, "L", 0.14f, 0.085f, 0.09f, false, pink)
+            list += ButtonCfg(BTN_R, "R", 0.86f, 0.085f, 0.09f, false, pink)
+        }
+
+        // L2/R2: PS1 usa os dois; no N64 o gatilho Z costuma ir no L2
+        if (systemId == "ps1") {
+            list += ButtonCfg(BTN_L2, "L2", 0.30f, 0.075f, 0.08f, false, pink)
+            list += ButtonCfg(BTN_R2, "R2", 0.70f, 0.075f, 0.08f, false, pink)
+        }
+        if (systemId == "n64") {
+            list += ButtonCfg(BTN_L2, "Z", 0.30f, 0.075f, 0.08f, false, pink)
+        }
 
         // Start/Select — ícones vetoriais
         list += ButtonCfg(BTN_SELECT, "⊕", 0.43f, 0.90f, 0.085f, false, dAccent,
@@ -197,7 +229,7 @@ class ControlsOverlayView @JvmOverloads constructor(
     }
 
     private fun loadLayout() {
-        val json = EmuSettings.controlsLayoutJson
+        val json = EmuSettings.controlsLayoutFor(systemId)
         if (json.isBlank()) {
             buttons.clear()
             buttons.addAll(defaultLayout())
@@ -248,11 +280,11 @@ class ControlsOverlayView @JvmOverloads constructor(
                 put("icon", b.icon)
             })
         }
-        EmuSettings.controlsLayoutJson = arr.toString()
+        EmuSettings.setControlsLayoutFor(systemId, arr.toString())
     }
 
     fun resetLayout() {
-        EmuSettings.controlsLayoutJson = ""
+        EmuSettings.setControlsLayoutFor(systemId, "")
         imageCache.evictAll()
         loadLayout()
         invalidate()

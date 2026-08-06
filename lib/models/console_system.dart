@@ -325,13 +325,16 @@ const kConsoleCatalog = <ConsoleSystem>[
     icon: Icons.tablet_mac_rounded,
     status: ConsoleStatus.experimental,
     touchScreen: true,
+    requiresBios: true,
     notes:
-        'Duas telas empilhadas. Toque na metade de BAIXO da tela para usar '
-        'a caneta (touch).',
+        'Requer BIOS do DS (bios7.bin, bios9.bin, firmware.bin) — sem '
+        'ela o jogo trava numa TELA BRANCA. Importe em Ajustes > BIOS. '
+        'Duas telas empilhadas: toque na metade de BAIXO para a caneta.',
     description:
         'Duas telas, sendo a de baixo sensível ao toque! Casa de Mario '
         'Kart DS, Pokémon HeartGold e Castlevania. A interação por toque '
-        'já funciona no PeraatMuu.',
+        'já funciona no PeraatMuu. Em aparelhos 32 bits o desempenho é '
+        'limitado (não há recompilador JIT para armv7).',
   ),
   ConsoleSystem(
     id: 'psp',
@@ -367,13 +370,13 @@ const kConsoleCatalog = <ConsoleSystem>[
     icon: Icons.view_in_ar_rounded,
     status: ConsoleStatus.experimental,
     notes:
-        'Usa renderizador por software (roda sem GPU forte) — jogos '
-        'simples como Mario 64 ficam jogáveis; jogos pesados vão engasgar '
-        'em aparelhos de entrada.',
+        'Renderizador por software (roda sem GPU forte). Tem OPÇÕES DO '
+        'NÚCLEO nesta tela: resolução interna 1x–5x, multi-thread e mais. '
+        'Em aparelhos de entrada, mantenha 1x para áudio e velocidade ok.',
     description:
         'O 64-bits da Nintendo dos cartuchos: Mario 64, Zelda Ocarina of '
-        'Time, GoldenEye 007. Roda via GPU — desempenho varia bastante '
-        'por aparelho.',
+        'Time, GoldenEye 007. Renderizador angrylion por software — a '
+        'resolução interna é ajustável nas opções do núcleo.',
   ),
   ConsoleSystem(
     id: '3ds',

@@ -38,6 +38,8 @@ class MainActivity : FlutterActivity() {
                         val corePath = call.argument<String>("corePath")
                         val romPath = call.argument<String>("romPath")
                         val systemId = call.argument<String>("systemId") ?: "generic"
+                        val coreOptions =
+                            call.argument<Map<String, String>>("coreOptions").orEmpty()
                         when {
                             corePath.isNullOrBlank() ->
                                 result.error("NO_CORE", "Caminho do núcleo não informado", null)
@@ -48,7 +50,7 @@ class MainActivity : FlutterActivity() {
                             else -> {
                                 startActivity(
                                     com.peraatmuu.app.emulator.GameActivity.createIntent(
-                                        this, corePath, romPath, systemId
+                                        this, corePath, romPath, systemId, coreOptions,
                                     )
                                 )
                                 result.success(null)

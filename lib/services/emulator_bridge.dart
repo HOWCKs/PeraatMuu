@@ -28,11 +28,13 @@ class EmulatorBridge {
     required String corePath,
     required String romPath,
     required String systemId,
+    Map<String, String> coreOptions = const {},
   }) {
     return _channel.invokeMethod<void>('play', {
       'corePath': corePath,
       'romPath': romPath,
       'systemId': systemId,
+      'coreOptions': coreOptions,
     });
   }
 }
