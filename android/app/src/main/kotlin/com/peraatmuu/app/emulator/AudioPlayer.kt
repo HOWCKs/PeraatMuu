@@ -5,6 +5,7 @@ import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
 import android.os.Build
+import android.os.Process
 
 /**
  * Thread que drena o buffer de áudio PCM do núcleo para o AudioTrack.
@@ -26,7 +27,9 @@ class AudioPlayer(private val sampleRate: Int) : Thread("PeraatMuuAudio") {
             AudioFormat.CHANNEL_OUT_STEREO,
             AudioFormat.ENCODING_PCM_16BIT,
         )
-        bufferSize = maxOf(min, 16384)
+        // Caixa alta: buffer acolchoado evita que o som suma quando a CPU
+        // está no limite (ex.: N64 com render interno acima de 1x).
+        bufferSize = maxOf(min * 2, 32768)
         track = createTrack(sampleRate, bufferSize)
     }
 
@@ -61,6 +64,12 @@ class AudioPlayer(private val sampleRate: Int) : Thread("PeraatMuuAudio") {
     }
 
     override fun run() {
+        // Prioridade de áudio em tempo real: impede o escalonador de
+        // esganar esta thread quando a CPU lota (N64/PSP em modo pesado).
+        try {
+            Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
+        } catch (_: Exception) {
+        }
         try {
             track.play()
         } catch (e: Exception) {

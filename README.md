@@ -37,11 +37,17 @@ O PeraatMuu é uma central única de emulação: em vez de instalar um app de em
 | Game Boy Advance | mGBA | `.gba .agb` | ✅ Pronto |
 | Arcade (FinalBurn Neo) | FBNeo | `.zip` | 🧪 Experimental |
 | PlayStation | PCSX ReARMed | `.cue .chd .pbp .iso .img` | 🧪 Experimental (requer BIOS¹) |
-| Nintendo 64 | Mupen64Plus-Next | — | 🔜 Fase 2 (OpenGL HW) |
-| PSP | PPSSPP | — | 🔜 Fase 2 (OpenGL HW) |
-| Nintendo DS | melonDS | — | 🔜 Fase 2 |
+| Nintendo 64 | ParaLLeL N64 (software) | `.z64 .n64 .v64` | 🧪 Experimental (resolução interna 1x–5x) |
+| PSP | PPSSPP (GPU) | `.iso .cso .pbp` | 🧪 Experimental (resolução interna 1x–4x) |
+| Nintendo DS | melonDS | `.nds` | 🧪 Experimental (**requer BIOS¹**, touch ok) |
+| Nintendo 3DS | — | — | 🔜 Em breve |
+| PlayStation 2 | — | — | 🔜 Em breve |
+| Nintendo Wii | — | — | 🔜 Em breve |
+| GameCube | — | — | 🔜 Em breve |
 
-¹ **BIOS**: para PS1, copie a BIOS do seu console (ex.: `scph5501.bin`) em *Ajustes → BIOS → Importar BIOS*.
+¹ **BIOS**: em *Ajustes → BIOS* você importa e acompanha os arquivos por console. PS1 aceita `scph5501.bin` (e variações); **Nintendo DS exige `bios7.bin` (16 KB), `bios9.bin` (4 KB) e `firmware.bin` (256 KB)** — sem eles o jogo trava na tela branca. Dumps com nomes comuns (`biosnds9.bin`, `dsfirmware.bin`) são renomeados na importação.
+
+> 🎮 **Preset de botões por console**: o controle virtual nasce adaptado a cada console (consoles de 2 botões mostram só A/B; GBA tem L/R; PS1 tem L2/R2; N64 tem o gatilho Z) e as edições de layout são salvas **por console**. Ajuste também as **Opções do núcleo** (resolução de render e mais) na tela de cada console.
 
 > ⚖️ **Aviso legal**: o PeraatMuu **não inclui nem distribui ROMs ou BIOS**. Use apenas backups dos jogos e do hardware que você possui. Cada núcleo segue a licença do seu projeto original (Stella, Nestopia, Snes9x⁽²⁾, Gambatte, mGBA, Genesis Plus GX, Mednafen/Beetle, FinalBurn Neo, PCSX ReARMed). ² Snes9x tem licença de uso não-comercial — o PeraatMuu é um app gratuito.
 

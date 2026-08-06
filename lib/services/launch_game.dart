@@ -1,11 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../models/console_system.dart';
 import '../models/game_entry.dart';
+import '../state/app_settings.dart';
 import '../state/core_controller.dart';
 import '../state/library_controller.dart';
+import 'bios_files.dart';
 import 'emulator_bridge.dart';
 import 'zip_rom.dart';
 
@@ -50,11 +54,24 @@ Future<void> launchGame(BuildContext context, GameEntry game) async {
     romPath = prepared;
   }
 
+  // BIOS exigida e ausente? Não bloqueia (núcleos novos/podem ter BIOS
+  // interna), mas explica de antemão o clássico sintoma de tela branca.
+  if (system.requiresBios && cores.systemDir.isNotEmpty) {
+    final missing = requiredBiosFilesFor(system.id)
+        .where((f) => !File('${cores.systemDir}/$f').existsSync())
+        .toList();
+    if (missing.isNotEmpty) {
+      warn('Sem a BIOS de ${system.shortName} (${missing.join(', ')}) o '
+          'jogo pode travar em tela branca. Importe em Ajustes > BIOS.');
+    }
+  }
+
   try {
     await EmulatorBridge.play(
       corePath: corePath,
       romPath: romPath,
       systemId: system.id,
+      coreOptions: context.read<AppSettings>().effectiveCoreOptions(system.id),
     );
     library.markPlayed(game);
   } on PlatformException catch (e) {

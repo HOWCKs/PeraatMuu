@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/console_system.dart';
+import '../../models/core_option.dart';
 import '../../models/game_entry.dart';
 import '../../services/launch_game.dart';
+import '../../state/app_settings.dart';
 import '../../state/core_controller.dart';
 import '../../state/library_controller.dart';
 import '../../theme/app_theme.dart';
@@ -53,6 +55,10 @@ class ConsoleDetailScreen extends StatelessWidget {
                       if (system.notes.isNotEmpty) ...[
                         const SizedBox(height: 10),
                         _NotesCard(system: system),
+                      ],
+                      if (coreOptionDefsFor(system.id).isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        _CoreOptionsCard(system: system),
                       ],
                       const SizedBox(height: 12),
                       Row(
@@ -206,6 +212,91 @@ class _DescriptionCard extends StatelessWidget {
                   color: AppTheme.textHigh, fontSize: 13, height: 1.45),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Card com as opções do núcleo (core options) do console — chips de
+/// escolha única, persistidos e aplicados na hora de abrir o jogo.
+class _CoreOptionsCard extends StatelessWidget {
+  final ConsoleSystem system;
+
+  const _CoreOptionsCard({required this.system});
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.watch<AppSettings>();
+    final defs = coreOptionDefsFor(system.id);
+    final accent = system.gradient.first;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF262640)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.tune_rounded, color: accent, size: 20),
+              const SizedBox(width: 8),
+              Text('OPÇÕES DO NÚCLEO', style: AppTheme.display(12,
+                  letterSpacing: 1.4, color: accent)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Vale para o próximo jogo que você abrir.',
+            style: TextStyle(color: AppTheme.textMid, fontSize: 11.5),
+          ),
+          for (final def in defs) ...[
+            const SizedBox(height: 12),
+            Text(def.title,
+                style: const TextStyle(
+                    color: AppTheme.textHigh,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600)),
+            if (def.subtitle != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(def.subtitle!,
+                    style: const TextStyle(
+                        color: AppTheme.textMid, fontSize: 11.5, height: 1.35)),
+              ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final choice in def.choices)
+                  ChoiceChip(
+                    label: Text(choice.label),
+                    selected:
+                        settings.coreOptionValue(system.id, def) == choice.value,
+                    onSelected: (_) => settings.setCoreOption(
+                        system.id, def.key, choice.value),
+                    labelStyle: TextStyle(
+                      fontSize: 12,
+                      color: settings.coreOptionValue(system.id, def) ==
+                              choice.value
+                          ? AppTheme.bg0
+                          : AppTheme.textHigh,
+                    ),
+                    selectedColor: accent,
+                    backgroundColor: const Color(0xFF1B1B2E),
+                    side: const BorderSide(color: Color(0xFF2E2E4D)),
+                    showCheckmark: false,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
+            ),
+          ],
         ],
       ),
     );

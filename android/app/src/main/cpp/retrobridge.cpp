@@ -27,6 +27,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <map>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -150,10 +151,24 @@ struct CoreOptKV {
 static const CoreOptKV kCoreOptions[] = {
     // ParaLLeL N64: renderizador angrylion = 100% software (não pede GPU).
     {"parallel-n64-gfxplugin", "angrylion"},
-    // melonDS: garante empilhamento das duas telas e caneta por toque.
+    {"parallel-n64-cpucore", "dynamic_recompiler"},
+    {"parallel-n64-angrylion-multithreading", "enabled"},
+    {"parallel-n64-screensize", "320x240"},
+    // melonDS: duas telas empilhadas, caneta por toque, boot direto no
+    // jogo e render em thread separada (desempenho em CPUs fracas).
     {"melonds_screen_layout", "Top/Bottom"},
     {"melonds_touch_mode", "Touch"},
+    {"melonds_console_mode", "DS"},
+    {"melonds_boot_directly", "enabled"},
+    {"melonds_jit_enable", "enabled"},
+    {"melonds_threaded_renderer", "enabled"},
+    {"melonds_opengl_renderer", "disabled"},
 };
+
+// Opções de núcleo escolhidas pelo usuário em tempo de execução
+// (por console, nas telas do app). Têm prioridade sobre kCoreOptions.
+static std::mutex g_opts_mutex;
+static std::map<std::string, std::string> g_core_opts;
 
 enum retro_log_level {
     RETRO_LOG_DEBUG = 0,
@@ -451,6 +466,18 @@ static bool environment_cb(unsigned cmd, void *data) {
         case RETRO_ENV_GET_VARIABLE: {
             auto *var = static_cast<retro_variable *>(data);
             if (!var || !var->key) return false;
+            {
+                // 1) escolha do usuário (tela de opções do núcleo)
+                std::lock_guard<std::mutex> lock(g_opts_mutex);
+                auto it = g_core_opts.find(var->key);
+                if (it != g_core_opts.end()) {
+                    var->value = it->second.c_str();
+                    LOGI("Opção do núcleo (usuário): %s = %s",
+                         var->key, it->second.c_str());
+                    return true;
+                }
+            }
+            // 2) padrões otimizados do PeraatMuu
             for (const auto &opt : kCoreOptions) {
                 if (strcmp(var->key, opt.key) == 0) {
                     var->value = opt.value;
@@ -752,6 +779,13 @@ Java_com_peraatmuu_app_emulator_RetroBridge_nativeInit(
     g_sys_dir = sys.c();
     g_save_dir = save.c();
 
+    {
+        // Sessão nova: zera as opções customizadas; o app reaplica as
+        // escolhas do usuário logo após nativeInit e antes do loadGame.
+        std::lock_guard<std::mutex> lock(g_opts_mutex);
+        g_core_opts.clear();
+    }
+
     if (g_running.load()) {
         // Sessão anterior ainda ativa
         return -10;
@@ -907,7 +941,28 @@ Java_com_peraatmuu_app_emulator_RetroBridge_nativeUnload(JNIEnv *env, jclass cla
     }
     g_rom_data.clear();
     g_rom_data.shrink_to_fit();
+    {
+        std::lock_guard<std::mutex> lock(g_opts_mutex);
+        g_core_opts.clear();
+    }
     g_loaded = false;
+}
+
+// Recebe uma opção de núcleo escolhida pelo usuário (aplicada no
+// próximo GET_VARIABLE do núcleo; chaves vazias removem o override).
+extern "C" JNIEXPORT void JNICALL
+Java_com_peraatmuu_app_emulator_RetroBridge_nativeSetCoreOption(
+        JNIEnv *env, jclass clazz, jstring key, jstring value) {
+    (void)clazz;
+    JStr k(env, key);
+    JStr v(env, value);
+    if (!k.c() || k.c()[0] == '\0') return;
+    std::lock_guard<std::mutex> lock(g_opts_mutex);
+    if (!v.c() || v.c()[0] == '\0') {
+        g_core_opts.erase(k.c());
+    } else {
+        g_core_opts[k.c()] = v.c();
+    }
 }
 
 extern "C" JNIEXPORT void JNICALL

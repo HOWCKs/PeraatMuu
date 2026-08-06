@@ -35,6 +35,10 @@ object RetroBridge {
     @JvmStatic external fun nativeGetSpeedFactor(): Float
     @JvmStatic external fun nativeSetCheats(entries: IntArray)
 
+    /** Aplica uma opção de núcleo (core option) escolhida pelo usuário.
+     * Deve ser chamada ANTES do loadGame. Valor "" remove o override. */
+    @JvmStatic external fun nativeSetCoreOption(key: String, value: String)
+
     /** Núcleo negociou renderização por hardware (GPU) durante o load? */
     @JvmStatic external fun nativeIsHwRender(): Boolean
 

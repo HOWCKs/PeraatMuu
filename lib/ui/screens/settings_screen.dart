@@ -6,6 +6,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/console_system.dart';
+import '../../services/bios_files.dart';
 import '../../state/app_settings.dart';
 import '../../state/core_controller.dart';
 import '../../state/library_controller.dart';
@@ -104,47 +105,8 @@ class SettingsScreen extends StatelessWidget {
         ),
 
         // ---------------- BIOS ----------------
-        const SectionHeader(title: 'BIOS (PlayStation e cia)'),
-        _Card(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.shield_rounded,
-                      color: AppTheme.yellow, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Pasta do sistema',
-                      style: AppTheme.display(12, letterSpacing: 1.6),
-                    ),
-                  ),
-                  _ActionButton(
-                    icon: Icons.file_upload_rounded,
-                    label: 'IMPORTAR BIOS',
-                    onTap: () => _importBios(context, cores),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                cores.systemDir.isEmpty
-                    ? 'Pasta do sistema ainda não inicializada.'
-                    : 'Copie seus arquivos de BIOS para:\n${cores.systemDir}',
-                style:
-                    const TextStyle(color: AppTheme.textMid, fontSize: 12.5),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Ex.: scph5501.bin (PS1 americano). Use apenas BIOS extraída do seu próprio console.',
-                style: TextStyle(color: AppTheme.textMid, fontSize: 12),
-              ),
-            ],
-          ),
-        ),
-
-        // ---------------- Núcleos ----------------
+        const SectionHeader(title: 'BIOS (PS1 e Nintendo DS)'),
+        _BiosCard(systemDir: cores.systemDir),
         const SectionHeader(title: 'Núcleos de emulação'),
         _Card(
           child: Column(
@@ -280,39 +242,178 @@ class SettingsScreen extends StatelessWidget {
       ],
     );
   }
-
-  Future<void> _importBios(BuildContext context, CoreController cores) async {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    final result = await FilePicker.platform.pickFiles(
-      dialogTitle: 'Escolha o arquivo de BIOS',
-      type: FileType.any,
-    );
-    final path = result?.files.single.path;
-    if (path == null) return;
-    if (cores.systemDir.isEmpty) {
-      messenger?.showSnackBar(
-        const SnackBar(content: Text('Pasta do sistema indisponível.')),
-      );
-      return;
-    }
-    try {
-      final source = File(path);
-      final name = source.uri.pathSegments.last;
-      await source.copy('${cores.systemDir}/$name');
-      messenger?.showSnackBar(
-        SnackBar(content: Text('BIOS copiada: $name')),
-      );
-    } catch (e) {
-      messenger?.showSnackBar(
-        SnackBar(content: Text('Falha ao copiar BIOS: $e')),
-      );
-    }
-  }
 }
 
 // ---------------------------------------------------------------------------
 // Widgets internos
 // ---------------------------------------------------------------------------
+
+/// Card de BIOS: lista para PS1 e Nintendo DS quais arquivos já estão
+/// na pasta do sistema e permite importar vários de uma vez (nomes de
+/// dumps comuns como biosnds9.bin são normalizados automaticamente).
+class _BiosCard extends StatefulWidget {
+  final String systemDir;
+
+  const _BiosCard({required this.systemDir});
+
+  @override
+  State<_BiosCard> createState() => _BiosCardState();
+}
+
+class _BiosCardState extends State<_BiosCard> {
+  bool _exists(String name) =>
+      widget.systemDir.isNotEmpty && File('${widget.systemDir}/$name').existsSync();
+
+  Future<void> _import() async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (widget.systemDir.isEmpty) {
+      messenger?.showSnackBar(
+        const SnackBar(content: Text('Pasta do sistema indisponível.')),
+      );
+      return;
+    }
+    final result = await FilePicker.platform.pickFiles(
+      dialogTitle: 'Escolha um ou mais arquivos de BIOS',
+      type: FileType.any,
+      allowMultiple: true,
+    );
+    final files = result?.files ?? const <PlatformFile>[];
+    if (files.isEmpty) return;
+
+    var copied = 0;
+    final unrecognized = <String>[];
+    for (final f in files) {
+      final path = f.path;
+      if (path == null) continue;
+      try {
+        final source = File(path);
+        final original = source.uri.pathSegments.last;
+        final canonical = canonicalBiosName(original);
+        // Nomes desconhecidos vão em minúsculas mesmo assim — o usuário
+        // pode estar importando uma variante válida de outro núcleo.
+        final dest = canonical ?? original.toLowerCase();
+        await source.copy('${widget.systemDir}/$dest');
+        if (canonical != null) copied++;
+        if (canonical == null) unrecognized.add(original);
+      } catch (e) {
+        messenger?.showSnackBar(
+          SnackBar(content: Text('Falha ao copiar BIOS: $e')),
+        );
+      }
+    }
+    if (!mounted) return;
+    setState(() {}); // atualiza os status da lista
+    if (copied > 0) {
+      messenger?.showSnackBar(
+        SnackBar(content: Text('BIOS importada: $copied arquivo(s).')),
+      );
+    }
+    if (unrecognized.isNotEmpty) {
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text('Nome não reconhecido: ${unrecognized.join(', ')}. '
+              'Para NDS use bios7.bin, bios9.bin e firmware.bin.'),
+        ),
+      );
+    }
+  }
+
+  Widget _fileRow(String name, {String? note}) {
+    final ok = _exists(name);
+    final kb = kBiosExpectedKb[name];
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          Icon(
+            ok ? Icons.check_circle_rounded : Icons.circle_outlined,
+            size: 15,
+            color: ok ? AppTheme.neon : AppTheme.textMid,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              kb != null ? '$name  (${kb} KB)' : name,
+              style: TextStyle(
+                color: ok ? AppTheme.textHigh : AppTheme.textMid,
+                fontSize: 12.5,
+              ),
+            ),
+          ),
+          if (note != null)
+            Text(note,
+                style: const TextStyle(color: AppTheme.textMid, fontSize: 11)),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ps1Ok = requiredBiosFilesFor('ps1').any(_exists);
+    final ndsOk = requiredBiosFilesFor('nds').every(_exists);
+    return _Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.shield_rounded, color: AppTheme.yellow, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('Pasta do sistema',
+                    style: AppTheme.display(12, letterSpacing: 1.6)),
+              ),
+              _ActionButton(
+                icon: Icons.file_upload_rounded,
+                label: 'IMPORTAR',
+                onTap: _import,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            widget.systemDir.isEmpty
+                ? 'Pasta do sistema ainda não inicializada.'
+                : 'Arquivos em:\\n${widget.systemDir}',
+            style: const TextStyle(color: AppTheme.textMid, fontSize: 11.5),
+          ),
+          const SizedBox(height: 10),
+          Text('PLAYSTATION (PS1)',
+              style: AppTheme.display(10.5, letterSpacing: 1.2,
+                  color: ps1Ok ? AppTheme.neon : AppTheme.textMid)),
+          const SizedBox(height: 4),
+          for (final f in requiredBiosFilesFor('ps1')) _fileRow(f),
+          const Padding(
+            padding: EdgeInsets.only(top: 3),
+            child: Text(
+              'PS1 funciona com BIOS interna simulada; a real melhora a compatibilidade (basta UMA).',
+              style: TextStyle(color: AppTheme.textMid, fontSize: 11),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text('NINTENDO DS (NDS)',
+              style: AppTheme.display(10.5, letterSpacing: 1.2,
+                  color: ndsOk ? AppTheme.neon : AppTheme.textMid)),
+          const SizedBox(height: 4),
+          for (final f in requiredBiosFilesFor('nds')) _fileRow(f),
+          const Padding(
+            padding: EdgeInsets.only(top: 3),
+            child: Text(
+              'OBRIGATÓRIA: sem os 3 arquivos o jogo do DS trava na tela branca.',
+              style: TextStyle(color: AppTheme.yellow, fontSize: 11),
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Use apenas BIOS extraída do seu próprio console. Nomes como biosnds9.bin e dsfirmware.bin são renomeados na importação.',
+            style: TextStyle(color: AppTheme.textMid, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _Card extends StatelessWidget {
   final Widget child;

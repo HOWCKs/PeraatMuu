@@ -51,10 +51,20 @@ object EmuSettings {
 
     // ------------------------------------------------------ Controles
 
-    /** JSON do layout dos controles ("" = padrão). */
-    var controlsLayoutJson: String
-        get() = prefs.getString("controls_layout", "") ?: ""
-        set(v) = prefs.edit().putString("controls_layout", v).apply()
+    /** JSON do layout dos controles de CADA console (""/_null_ = padrão
+     * do console). O layout global antigo ("controls_layout") é usado
+     * como base na primeira vez e migrado ao primeiro salvamento. */
+    fun controlsLayoutFor(systemId: String): String {
+        val perKey = "controls_layout_$systemId"
+        val per = prefs.getString(perKey, null)
+        if (per != null) return per
+        // migração: layout global (editado em versões antigas) vira base
+        return prefs.getString("controls_layout", "") ?: ""
+    }
+
+    fun setControlsLayoutFor(systemId: String, json: String) {
+        prefs.edit().putString("controls_layout_$systemId", json).apply()
+    }
 
     /** JSON de cheats por jogo (chave = hash do caminho da ROM). */
     fun cheatsFor(romPath: String): String =
