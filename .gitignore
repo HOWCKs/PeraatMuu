@@ -1,0 +1,38 @@
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+.flutter-versions
+pubspec.lock
+
+# Android
+android/local.properties
+android/.gradle/
+android/app/build/
+android/key.properties
+*.keystore
+!debug.keystore
+
+# Núcleos libretro baixados durante o build (CI) — não versionar binários grandes
+android/app/src/main/jniLibs/
+
+# Artefatos do smoke test nativo
+tools/native_smoke/.smoke_build/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# SO
+.DS_Store
+Thumbs.db
+
+# Smoke build intermediário
+tools/native_smoke/.smoke_build/
+assets_raw
+
+# Dados do Dolphin (Sys) baixados no build pelo tools/download_cores.sh
+android/app/src/main/assets/sysdata/

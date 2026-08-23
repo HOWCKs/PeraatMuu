@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Exibida enquanto o engine Flutter inicializa -->
+    <style name="LaunchTheme" parent="@android:style/Theme.NoTitleBar">
+        <item name="android:windowBackground">@drawable/launch_background</item>
+    </style>
+
+    <style name="NormalTheme" parent="@android:style/Theme.NoTitleBar">
+        <item name="android:windowBackground">?android:attr/colorBackground</item>
+    </style>
+
+    <!-- Tela cheia para a atividade de emulação -->
+    <style name="EmulatorTheme" parent="android:Theme.Black.NoTitleBar.Fullscreen">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+</resources>
