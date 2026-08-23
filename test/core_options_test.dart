@@ -34,14 +34,14 @@ void main() {
 
     final resolucao = kCoreOptionDefsBySystem['n64']!
         .firstWhere((d) => d.key == 'parallel-n64-screensize');
-    // padrão antes de mexer
-    expect(settings.coreOptionValue('n64', resolucao), '320x240');
+    // padrão seguro: 2x (1x dispara o bug de tela preta do angrylion)
+    expect(settings.coreOptionValue('n64', resolucao), '640x480');
     expect(settings.effectiveCoreOptions('snes'), isEmpty);
 
     await settings.setCoreOption(
-        'n64', 'parallel-n64-screensize', '640x480');
+        'n64', 'parallel-n64-screensize', '960x720');
     final efective = settings.effectiveCoreOptions('n64');
-    expect(efective['parallel-n64-screensize'], '640x480');
+    expect(efective['parallel-n64-screensize'], '960x720');
     // demais opções do N64 entram com o padrão
     expect(efective['parallel-n64-angrylion-multithreading'], 'enabled');
 
@@ -49,11 +49,11 @@ void main() {
     final fresh = AppSettings();
     await fresh.init();
     expect(fresh.effectiveCoreOptions('n64')['parallel-n64-screensize'],
-        '640x480');
+        '960x720');
 
     // valor vazio remove o override e volta ao padrão
     await fresh.setCoreOption('n64', 'parallel-n64-screensize', '');
-    expect(fresh.coreOptionValue('n64', resolucao), '320x240');
+    expect(fresh.coreOptionValue('n64', resolucao), '640x480');
   });
 
   test('BIOS: catálogo PS1, normalização e NDS sem exigência (DeSmuME)',
