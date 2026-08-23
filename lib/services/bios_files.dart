@@ -6,29 +6,20 @@
 library;
 
 /// Consoles -> nomes canônicos de BIOS aceitos.
+/// NDS usa DeSmuME (não precisa de BIOS) e PS2 usa Play! (também sem BIOS).
 const Map<String, List<String>> kBiosFilesBySystem = {
   'ps1': ['scph5501.bin', 'scph7001.bin', 'scph1001.bin'],
-  'nds': ['bios7.bin', 'bios9.bin', 'firmware.bin'],
 };
 
 /// Tamanhos esperados (em KB) só para exibição/ajuda ao usuário.
 const Map<String, int> kBiosExpectedKb = {
-  'bios7.bin': 16,
-  'bios9.bin': 4,
-  'firmware.bin': 256,
   'scph5501.bin': 512,
   'scph7001.bin': 512,
   'scph1001.bin': 512,
 };
 
 /// Apelidos comuns encontrados em dumps da internet -> nome canônico.
-/// Dumps de DS, por exemplo, costumam vir como `biosnds9.bin`.
-const Map<String, String> kBiosAliases = {
-  'biosnds7.bin': 'bios7.bin',
-  'biosnds9.bin': 'bios9.bin',
-  'dsfirmware.bin': 'firmware.bin',
-  'ds_firmware.bin': 'firmware.bin',
-};
+const Map<String, String> kBiosAliases = {};
 
 /// BIOS requeridas por um console (lista vazia = não exige).
 List<String> requiredBiosFilesFor(String systemId) =>
@@ -43,11 +34,12 @@ String? canonicalBiosName(String fileName) {
   for (final files in kBiosFilesBySystem.values) {
     if (files.contains(lower)) return lower;
   }
+  // BIOS de DS de versões antigas (DeSmuME atual não usa — aceitamos e
+  // guardamos; algum núcleo futuro pode aproveitar).
+  const legacyDs = {'bios7.bin', 'bios9.bin', 'firmware.bin'};
+  if (legacyDs.contains(lower)) return lower;
   return null;
 }
 
 /// Todos os nomes canônicos (para a tela de Ajustes listar status).
-List<String> get allBiosNames => [
-      ...kBiosFilesBySystem['ps1']!,
-      ...kBiosFilesBySystem['nds']!,
-    ];
+List<String> get allBiosNames => [...kBiosFilesBySystem['ps1']!];

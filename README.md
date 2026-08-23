@@ -39,13 +39,15 @@ O PeraatMuu é uma central única de emulação: em vez de instalar um app de em
 | PlayStation | PCSX ReARMed | `.cue .chd .pbp .iso .img` | 🧪 Experimental (requer BIOS¹) |
 | Nintendo 64 | ParaLLeL N64 (software) | `.z64 .n64 .v64` | 🧪 Experimental (resolução interna 1x–5x) |
 | PSP | PPSSPP (GPU) | `.iso .cso .pbp` | 🧪 Experimental (resolução interna 1x–4x) |
-| Nintendo DS | melonDS | `.nds` | 🧪 Experimental (**requer BIOS¹**, touch ok) |
-| Nintendo 3DS | — | — | 🔜 Em breve |
-| PlayStation 2 | — | — | 🔜 Em breve |
-| Nintendo Wii | — | — | 🔜 Em breve |
-| GameCube | — | — | 🔜 Em breve |
+| Nintendo DS | DeSmuME | `.nds` | 🧪 Experimental (sem BIOS, touch ok) |
+| Nintendo 3DS | Citra² | `.3ds .3dsx .cci .cxi .app` | 🧪 Experimental (só 64-bit, GPU ES3) |
+| PlayStation 2 | Play!² | `.iso .mdf .isz .chd .cso .bin .cue` | 🧪 Experimental (só 64-bit, sem BIOS) |
+| GameCube | Dolphin² | `.gcm .rvz .iso .gcz .ciso .dol .elf` | 🧪 Experimental (só 64-bit, GPU ES3) |
+| Nintendo Wii | Dolphin² | `.wbfs .rvz .wia .iso .gcz .ciso` | 🧪 Experimental (só 64-bit, GPU ES3) |
 
-¹ **BIOS**: em *Ajustes → BIOS* você importa e acompanha os arquivos por console. PS1 aceita `scph5501.bin` (e variações); **Nintendo DS exige `bios7.bin` (16 KB), `bios9.bin` (4 KB) e `firmware.bin` (256 KB)** — sem eles o jogo trava na tela branca. Dumps com nomes comuns (`biosnds9.bin`, `dsfirmware.bin`) são renomeados na importação.
+¹ **BIOS**: só o PS1 se beneficia de BIOS real (`scph5501.bin` e variações — importe em *Ajustes → BIOS*; a interna simulada já funciona). NDS (DeSmuME) e PS2 (Play!) **não precisam** de BIOS; GameCube/Wii já trazem a pasta de dados do Dolphin embutida.
+
+² **Consoles pesados**: esses núcleos só existem para **arm64-v8a** — em aparelhos 32 bits o console aparece bloqueado com aviso. Os dados de sistema do Dolphin (`Data/Sys` do projeto oficial) são embutidos no APK e extraídos na primeira execução.
 
 > 🎮 **Preset de botões por console**: o controle virtual nasce adaptado a cada console (consoles de 2 botões mostram só A/B; GBA tem L/R; PS1 tem L2/R2; N64 tem o gatilho Z) e as edições de layout são salvas **por console**. Ajuste também as **Opções do núcleo** (resolução de render e mais) na tela de cada console.
 

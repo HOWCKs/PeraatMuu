@@ -12,7 +12,9 @@ set -euo pipefail
 ABIS="${ABIS:-arm64-v8a armeabi-v7a x86_64}"
 
 # Núcleos — MANTER EM SINCRONIA com lib/models/console_system.dart (campo coreId)
-CORES="${CORES:-stella nestopia genesis_plus_gx mednafen_pce_fast gambatte snes9x mednafen_lynx mednafen_ngp mednafen_wswan mgba fbneo pcsx_rearmed melonds ppsspp parallel_n64}"
+# ps2/gcn/wii/3ds: só existem (ou só fazem sentido) em 64-bit — o script tolera
+# 404 por ABI e o app esconde o console quando o núcleo não existe no APK.
+CORES="${CORES:-stella nestopia genesis_plus_gx mednafen_pce_fast gambatte snes9x mednafen_lynx mednafen_ngp mednafen_wswan mgba fbneo pcsx_rearmed melonds desmume ppsspp parallel_n64 citra play dolphin}"
 
 # Permite override para testes locais (ex.: BASE_URL=file:///tmp/cores_fixture)
 BASE_URL="${BASE_URL:-https://buildbot.libretro.com/nightly/android/latest}"
@@ -48,3 +50,26 @@ done
 
 echo "== Núcleos instalados em $OUT_DIR =="
 find "$OUT_DIR" -name '*.so' | sort
+
+# ---------------------------------------------------------------------------
+# Dados do Dolphin (GCN/Wii): o núcleo libretro EXIGE a pasta Sys em
+# <system>/dolphin-emu/. Baixamos Data/Sys do repo oficial e embutimos nos
+# assets do APK; o app extrai para filesDir/system na primeira execução.
+# ---------------------------------------------------------------------------
+SYSDATA_DIR="$(dirname "$0")/../android/app/src/main/assets/sysdata/dolphin-emu"
+DOLPHIN_TARBALL="${DOLPHIN_TARBALL:-https://codeload.github.com/libretro/dolphin/tar.gz/refs/heads/master}"
+if [ -d "$SYSDATA_DIR/Sys" ]; then
+  echo "== [cache] dados do Dolphin já embutidos =="
+else
+  echo "== Baixando Data/Sys do Dolphin =="
+  if curl -fSL --retry 3 --connect-timeout 20 -o "$TMP_DIR/dolphin.tar.gz" "$DOLPHIN_TARBALL"; then
+    mkdir -p "$TMP_DIR/dolphin" "$SYSDATA_DIR"
+    tar -xzf "$TMP_DIR/dolphin.tar.gz" -C "$TMP_DIR/dolphin" --wildcards 'dolphin-*/Data/Sys'
+    mv "$TMP_DIR"/dolphin/dolphin-*/Data/Sys "$SYSDATA_DIR/Sys"
+    # Higiene: nada de fotos gigantes/acessórios desnecessários no APK.
+    rm -rf "$SYSDATA_DIR/Sys/Resources" "$SYSDATA_DIR/Sys/Themes" 2>/dev/null || true
+    echo "== Sys do Dolphin embutido: $(du -sh "$SYSDATA_DIR" | cut -f1) =="
+  else
+    echo "[AVISO] não foi possível baixar o Sys do Dolphin (GCN/Wii ficam sem dados)" >&2
+  fi
+fi

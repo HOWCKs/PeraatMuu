@@ -51,12 +51,13 @@ const Map<String, List<CoreOptionDef>> kCoreOptionDefsBySystem = {
       key: 'parallel-n64-screensize',
       title: 'Resolução interna de render',
       subtitle:
-          'Acima de 2x exige muito da CPU. Neste aparelho (2 GB), em 2x+ '
-          'o jogo perde velocidade e o áudio pode falhar — use 1x–2x.',
-      defaultValue: '320x240',
+          '2x é o padrão seguro (em 1x o renderizador entrega tela preta). '
+          'Acima de 2x exige muito da CPU — em aparelhos de entrada o jogo '
+          'perde velocidade e o áudio pode falhar.',
+      defaultValue: '640x480',
       choices: [
-        CoreOptionChoice('320x240', '1x (nativa)', hint: 'mais rápido'),
-        CoreOptionChoice('640x480', '2x'),
+        CoreOptionChoice('640x480', '2x (recomendado)'),
+        CoreOptionChoice('320x240', '1x', hint: 'pode dar tela preta'),
         CoreOptionChoice('960x720', '3x'),
         CoreOptionChoice('1280x960', '4x'),
         CoreOptionChoice('1600x1200', '5x', hint: 'só aparelhos fortes'),

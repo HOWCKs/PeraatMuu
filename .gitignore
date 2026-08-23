@@ -33,3 +33,6 @@ Thumbs.db
 # Smoke build intermediário
 tools/native_smoke/.smoke_build/
 assets_raw
+
+# Dados do Dolphin (Sys) baixados no build pelo tools/download_cores.sh
+android/app/src/main/assets/sysdata/

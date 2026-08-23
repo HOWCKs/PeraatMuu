@@ -15,14 +15,17 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
-                    "getPaths" -> result.success(
-                        mapOf(
-                            "coresDir" to applicationInfo.nativeLibraryDir,
-                            "systemDir" to ensureDir("system"),
-                            "statesDir" to ensureDir("states"),
-                            "savesDir" to ensureDir("saves"),
+                    "getPaths" -> {
+                        ensureSysData()
+                        result.success(
+                            mapOf(
+                                "coresDir" to applicationInfo.nativeLibraryDir,
+                                "systemDir" to ensureDir("system"),
+                                "statesDir" to ensureDir("states"),
+                                "savesDir" to ensureDir("saves"),
+                            )
                         )
-                    )
+                    }
 
                     "getAbi" -> result.success(Build.SUPPORTED_ABIS.firstOrNull() ?: "arm64-v8a")
 
@@ -65,4 +68,41 @@ class MainActivity : FlutterActivity() {
 
     private fun ensureDir(name: String): String =
         File(filesDir, name).apply { mkdirs() }.absolutePath
+
+    /** Extrai dados de sistema embutidos nos assets (ex.: a pasta Sys do
+     * Dolphin, exigida em <system>/dolphin-emu/). Roda uma vez por versão
+     * do pacote de dados (arquivo sentinela .stamp). */
+    private fun ensureSysData() {
+        val sysDir = File(filesDir, "system").apply { mkdirs() }
+        val stamp = File(sysDir, ".sysdata_v1.stamp")
+        if (stamp.exists()) return
+        try {
+            var any = false
+            for (child in assets.list("sysdata") ?: emptyArray()) {
+                any = copyAssetsRecursively("sysdata/$child", sysDir) || any
+            }
+            if (any) stamp.writeText("ok")
+        } catch (_: Exception) {
+            // Assets ausentes (build sem os dados) — consoles ficam como
+            // indisponíveis na interface, nada quebra.
+        }
+    }
+
+    private fun copyAssetsRecursively(assetPath: String, outDir: File): Boolean {
+        val children = assets.list(assetPath) ?: return false
+        if (children.isEmpty()) {
+            // É um arquivo
+            val out = File(outDir, File(assetPath).name)
+            assets.open(assetPath).use { input ->
+                out.outputStream().use { output -> input.copyTo(output, 64 * 1024) }
+            }
+            return true
+        }
+        val dir = File(outDir, File(assetPath).name).apply { mkdirs() }
+        var any = false
+        for (child in children) {
+            any = copyAssetsRecursively("$assetPath/$child", dir) || any
+        }
+        return any
+    }
 }

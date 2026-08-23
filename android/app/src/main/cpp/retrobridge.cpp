@@ -153,7 +153,8 @@ static const CoreOptKV kCoreOptions[] = {
     {"parallel-n64-gfxplugin", "angrylion"},
     {"parallel-n64-cpucore", "dynamic_recompiler"},
     {"parallel-n64-angrylion-multithreading", "enabled"},
-    {"parallel-n64-screensize", "320x240"},
+    // 640x480: em 320x240 o angrylion entrega quadro preto (bug conhecido).
+    {"parallel-n64-screensize", "640x480"},
     // melonDS: duas telas empilhadas, caneta por toque, boot direto no
     // jogo e render em thread separada (desempenho em CPUs fracas).
     {"melonds_screen_layout", "Top/Bottom"},
@@ -834,7 +835,15 @@ Java_com_peraatmuu_app_emulator_RetroBridge_nativeLoadGame(
             for (size_t i = 0; i <= n; ++i) e[i] = (char)tolower((unsigned char)ext[1 + i]);
             streaming = !strcmp(e, "cue") || !strcmp(e, "chd") || !strcmp(e, "pbp") ||
                         !strcmp(e, "iso") || !strcmp(e, "img") || !strcmp(e, "zip") ||
-                        !strcmp(e, "m3u") || !strcmp(e, "cso");
+                        !strcmp(e, "m3u") || !strcmp(e, "cso") ||
+                        // DS/3DS/grandes consoles novos: abrem por caminho
+                        // (saves ao lado do arquivo, >96 MB, leitores próprios)
+                        !strcmp(e, "nds") || !strcmp(e, "3ds") || !strcmp(e, "3dsx") ||
+                        !strcmp(e, "cci") || !strcmp(e, "cxi") || !strcmp(e, "app") ||
+                        !strcmp(e, "axf") || !strcmp(e, "gcm") || !strcmp(e, "rvz") ||
+                        !strcmp(e, "wbfs") || !strcmp(e, "gcz") || !strcmp(e, "dol") ||
+                        !strcmp(e, "elf") || !strcmp(e, "mdf") || !strcmp(e, "isz") ||
+                        !strcmp(e, "wia");
         }
     }
 

@@ -32,10 +32,15 @@ Future<void> launchGame(BuildContext context, GameEntry game) async {
     warn('${system.shortName} chega em uma próxima versão do PeraatMuu.');
     return;
   }
+  if (system.arm64Only && cores.abi.contains('armeabi')) {
+    warn('${system.shortName} precisa de um aparelho 64 bits. '
+        'Baixe o APK arm64-v8a em um celular 64 bits.');
+    return;
+  }
   final corePath = cores.corePathFor(system);
   if (corePath == null || !cores.isReady(system)) {
-    warn('Núcleo "${system.coreName ?? system.coreId}" não encontrado. '
-        'Reinstale o APK ou verifique a página de núcleos nos Ajustes.');
+    warn('Núcleo "${system.coreName ?? system.coreId}" não encontrado '
+        'neste APK. Em consoles 64 bits, baixe a versão arm64-v8a do app.');
     return;
   }
 
@@ -52,6 +57,24 @@ Future<void> launchGame(BuildContext context, GameEntry game) async {
       return;
     }
     romPath = prepared;
+  }
+
+  // PS1 com .bin solto: PCSX-ReARMed carrega muito melhor via .cue.
+  // Sintetizamos um cue mínimo ao lado da imagem quando falta.
+  if (system.id == 'ps1' && romPath.toLowerCase().endsWith('.bin')) {
+    final bin = File(romPath);
+    final cuePath =
+        romPath.substring(0, romPath.length - 4) + '.cue';
+    if (!File(cuePath).existsSync()) {
+      try {
+        final name = bin.uri.pathSegments.last;
+        File(cuePath).writeAsStringSync(
+            'FILE "$name" BINARY\n  TRACK 01 MODE2/2352\n    INDEX 01 00:00:00\n');
+      } catch (_) {
+        // Pasta sem permissão de escrita — segue com o .bin direto.
+      }
+    }
+    if (File(cuePath).existsSync()) romPath = cuePath;
   }
 
   // BIOS exigida e ausente? Não bloqueia (núcleos novos/podem ter BIOS

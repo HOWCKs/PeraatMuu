@@ -14,9 +14,9 @@ class AppSettings extends ChangeNotifier {
   bool _loaded = false;
 
   /// Páginas mais leves: sem varredura animada, sem tilt 3D nos cards.
-  /// Ligado por padrão — a experiência fica visivelmente mais fluida em
-  /// aparelhos de entrada.
-  bool _reducedEffects = true;
+  /// Desligado por padrão desde a v1.4 (as animações são leves o bastante
+  /// para aparelhos medianos) — ligue em aparelhos muito fracos.
+  bool _reducedEffects = false;
 
   /// Escolhas do usuário nas opções de núcleo:
   /// systemId -> (chave da opção -> valor).
@@ -27,7 +27,7 @@ class AppSettings extends ChangeNotifier {
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
-    _reducedEffects = _prefs.getBool(_kReducedEffects) ?? true;
+    _reducedEffects = _prefs.getBool(_kReducedEffects) ?? false;
     final raw = _prefs.getString(_kCoreOptions);
     if (raw != null && raw.isNotEmpty) {
       try {

@@ -65,6 +65,9 @@ class GameActivity : Activity() {
 
         /** Consoles com tela sensível ao toque (interação direta no jogo). */
         private val TOUCH_SYSTEMS = setOf("nds")
+
+        /** Núcleos cujos renderizadores exigem contexto OpenGL ES 3+. */
+        private val ES3_SYSTEMS = setOf("ps2", "3ds", "gcn", "wii")
     }
 
     private lateinit var glView: GLSurfaceView
@@ -162,9 +165,10 @@ class GameActivity : Activity() {
 
         glView = GLSurfaceView(this).apply {
             // Profundidade+stencil e contexto preservado: necessários para os
-            // núcleos com renderização por GPU (PSP, N64).
+            // núcleos com renderização por GPU (PSP, N64). Consoles mais
+            // pesados (PS2/3DS/GCN/WII) pedem contexto OpenGL ES 3.
             setEGLConfigChooser(8, 8, 8, 8, 16, 8)
-            setEGLContextClientVersion(2)
+            setEGLContextClientVersion(if (systemId in ES3_SYSTEMS) 3 else 2)
             setPreserveEGLContextOnPause(true)
             setRenderer(renderer)
             renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY

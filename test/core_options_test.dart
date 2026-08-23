@@ -56,19 +56,36 @@ void main() {
     expect(fresh.coreOptionValue('n64', resolucao), '320x240');
   });
 
-  test('BIOS: catálogo do NDS e normalização de nomes de dumps', () {
-    expect(requiredBiosFilesFor('nds'),
-        ['bios7.bin', 'bios9.bin', 'firmware.bin']);
+  test('BIOS: catálogo PS1, normalização e NDS sem exigência (DeSmuME)',
+      () {
+    expect(requiredBiosFilesFor('ps1'), contains('scph5501.bin'));
+    // NDS agora usa DeSmuME — não exige BIOS (fim da tela branca)
+    expect(requiredBiosFilesFor('nds'), isEmpty);
     expect(requiredBiosFilesFor('snes'), isEmpty);
 
-    expect(canonicalBiosName('BIOS7.BIN'), 'bios7.bin');
-    expect(canonicalBiosName('biosnds9.bin'), 'bios9.bin');
-    expect(canonicalBiosName('DSFirmware.bin'), 'firmware.bin');
+    expect(canonicalBiosName('SCPH5501.BIN'), 'scph5501.bin');
     expect(canonicalBiosName('scph5501.bin'), 'scph5501.bin');
     expect(canonicalBiosName('qualquercoisa.bin'), isNull);
 
-    // NDS marcado como exigindo BIOS (tela branca sem ela)
     final nds = kConsoleCatalog.firstWhere((s) => s.id == 'nds');
-    expect(nds.requiresBios, isTrue);
+    expect(nds.requiresBios, isFalse);
+    expect(nds.coreId, 'desmume');
+  });
+
+  test('novos consoles pesados: experimentais, com núcleo e trava 64-bit',
+      () {
+    for (final id in ['3ds', 'ps2', 'gcn', 'wii']) {
+      final s = kConsoleCatalog.firstWhere((e) => e.id == id);
+      expect(s.status, ConsoleStatus.experimental, reason: id);
+      expect(s.coreId, isNotNull, reason: id);
+      expect(s.hwRender, isTrue, reason: id);
+      expect(s.arm64Only, isTrue, reason: id);
+      expect(s.imageAsset.endsWith('$id.jpg'), isTrue, reason: id);
+    }
+    // .iso fica ambíguo de propósito: o app pergunta qual console
+    expect(systemsForExtension('iso').map((s) => s.id),
+        containsAll(['ps1', 'psp', 'ps2', 'gcn', 'wii']));
+    // padrão da varredura de pastas continua PS1 (catálogo na frente)
+    expect(kExtensionToSystem['iso'], 'ps1');
   });
 }

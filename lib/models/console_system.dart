@@ -45,6 +45,10 @@ class ConsoleSystem {
   /// O núcleo precisa de renderização por hardware (GPU/OpenGL).
   final bool hwRender;
 
+  /// O núcleo só existe para aparelhos 64-bit (arm64) — em APKs de 32
+  /// bits o console aparece bloqueado com aviso claro.
+  final bool arm64Only;
+
   const ConsoleSystem({
     required this.id,
     required this.name,
@@ -62,6 +66,7 @@ class ConsoleSystem {
     this.description = '',
     this.touchScreen = false,
     this.hwRender = false,
+    this.arm64Only = false,
   });
 
   String get coreFile => coreId == null ? '' : coreFileName(coreId!);
@@ -319,22 +324,20 @@ const kConsoleCatalog = <ConsoleSystem>[
     maker: 'Nintendo',
     year: 2004,
     extensions: ['nds'],
-    coreId: 'melonds',
-    coreName: 'melonDS',
+    coreId: 'desmume',
+    coreName: 'DeSmuME',
     gradient: [Color(0xFF78909C), Color(0xFF1B252A)],
     icon: Icons.tablet_mac_rounded,
     status: ConsoleStatus.experimental,
     touchScreen: true,
-    requiresBios: true,
     notes:
-        'Requer BIOS do DS (bios7.bin, bios9.bin, firmware.bin) — sem '
-        'ela o jogo trava numa TELA BRANCA. Importe em Ajustes > BIOS. '
-        'Duas telas empilhadas: toque na metade de BAIXO para a caneta.',
+        'Agora com núcleo DeSmuME: NÃO precisa de BIOS (nada de tela '
+        'branca!). Duas telas empilhadas — toque na metade de BAIXO para '
+        'a caneta. Roda melhor em aparelhos 64-bit (tem recompilador JIT).',
     description:
         'Duas telas, sendo a de baixo sensível ao toque! Casa de Mario '
         'Kart DS, Pokémon HeartGold e Castlevania. A interação por toque '
-        'já funciona no PeraatMuu. Em aparelhos 32 bits o desempenho é '
-        'limitado (não há recompilador JIT para armv7).',
+        'funciona no PeraatMuu e não exige nenhum arquivo de BIOS.',
   ),
   ConsoleSystem(
     id: 'psp',
@@ -384,18 +387,22 @@ const kConsoleCatalog = <ConsoleSystem>[
     shortName: '3DS',
     maker: 'Nintendo',
     year: 2011,
-    extensions: ['3ds', 'cci', 'cxi'],
+    extensions: ['3ds', '3dsx', 'cci', 'cxi', 'app'],
     coreId: 'citra',
     coreName: 'Citra',
     gradient: [Color(0xFF00ACC1), Color(0xFF04333B)],
     icon: Icons.layers_rounded,
-    status: ConsoleStatus.soon,
+    status: ConsoleStatus.experimental,
+    hwRender: true,
+    arm64Only: true,
     notes:
-        'O núcleo Citra só existe para aparelhos 64-bit com GPU forte. '
-        'Chega em versão futura.',
+        'Núcleo Citra oficial (64-bit + GPU OpenGL ES 3). ROMs precisam '
+        'estar DESCRIPTOGRAFADAS. Desempenho varia muito por jogo — jogos '
+        '2D/leves rodam melhor.',
     description:
-        'Sucessor do DS com 3D sem óculos. A emulação só roda bem em '
-        'celulares 64-bit potentes — por isso ficou para uma próxima fase.',
+        'Sucessor do DS com 3D sem óculos: Pokémon X/Y, Zelda Ocarina 3D, '
+        'Monster Hunter. Só disponível no APK arm64; as duas telas aparecem '
+        'empilhadas. Experimental — mande feedback!',
   ),
   ConsoleSystem(
     id: 'ps2',
@@ -403,18 +410,22 @@ const kConsoleCatalog = <ConsoleSystem>[
     shortName: 'PS2',
     maker: 'Sony',
     year: 2000,
-    extensions: ['mdf', 'isz'],
+    extensions: ['iso', 'mdf', 'isz', 'chd', 'cso', 'bin', 'cue'],
     coreId: 'play',
     coreName: 'Play!',
     gradient: [Color(0xFF1A237E), Color(0xFF05061F)],
     icon: Icons.dns_rounded,
-    status: ConsoleStatus.soon,
+    status: ConsoleStatus.experimental,
+    hwRender: true,
+    arm64Only: true,
     notes:
-        'PS2 exige muito hardware (64-bit + GPU forte). Estamos estudando '
-        'a viabilidade — sem previsão.',
+        'Núcleo Play! — NÃO precisa de BIOS do PS2 (emula tudo em '
+        'software/alto-nível). Compatibilidade ainda é baixa: jogos leves '
+        'funcionam, AAA 3D ficam lentos. Só 64-bit.',
     description:
-        'O console mais vendido da história! Emular PS2 é pesadíssimo: '
-        'só celulares 64-bit parrudos conseguem.',
+        'O console mais vendido da história: God of War, GTA, Kingdom '
+        'Hearts. O Play! emula sem BIOS, mas é o console mais exigente '
+        'do app — paciência com os carregamentos.',
   ),
   ConsoleSystem(
     id: 'gcn',
@@ -422,18 +433,22 @@ const kConsoleCatalog = <ConsoleSystem>[
     shortName: 'GCN',
     maker: 'Nintendo',
     year: 2001,
-    extensions: ['gcm', 'rvz'],
+    extensions: ['gcm', 'rvz', 'iso', 'gcz', 'ciso', 'dol', 'elf'],
     coreId: 'dolphin',
     coreName: 'Dolphin',
     gradient: [Color(0xFF6A3FB5), Color(0xFF1C0F38)],
     icon: Icons.inventory_2_rounded,
-    status: ConsoleStatus.soon,
+    status: ConsoleStatus.experimental,
+    hwRender: true,
+    arm64Only: true,
     notes:
-        'O núcleo Dolphin é 64-bit only e pesado. Chega quando suportarmos '
-        'aparelhos 64-bit.',
+        'Núcleo Dolphin oficial com os dados do sistema (Sys) já embutidos '
+        'no app. 64-bit + GPU OpenGL ES 3. Jogos leves (2D/poucos efeitos) '
+        'são os mais promissores em celular.',
     description:
-        'O cubinho roxo da Nintendo: Mario Sunshine, Smash Bros. Melee. '
-        'O núcleo Dolphin precisa de celular 64-bit forte.',
+        'O cubinho roxo da Nintendo: Mario Sunshine, Smash Bros. Melee, '
+        'Wind Waker. Os arquivos do sistema do Dolphin já vêm no PeraatMuu '
+        '— é só abrir a ISO.',
   ),
   ConsoleSystem(
     id: 'wii',
@@ -441,18 +456,22 @@ const kConsoleCatalog = <ConsoleSystem>[
     shortName: 'WII',
     maker: 'Nintendo',
     year: 2006,
-    extensions: ['wbfs'],
+    extensions: ['wbfs', 'rvz', 'wia', 'iso', 'gcz', 'ciso'],
     coreId: 'dolphin',
     coreName: 'Dolphin',
     gradient: [Color(0xFFB0BEC5), Color(0xFF37474F)],
     icon: Icons.wifi_tethering_rounded,
-    status: ConsoleStatus.soon,
+    status: ConsoleStatus.experimental,
+    hwRender: true,
+    arm64Only: true,
     notes:
-        'Divide o núcleo Dolphin com o GameCube (64-bit only). '
-        'Chega em versão futura.',
+        'Divide o núcleo Dolphin com o GameCube (64-bit). ATENÇÃO: jogos '
+        'pensados para Wii Remote não têm sensor de movimento aqui — '
+        'prefira títulos compatíveis com controle clássico.',
     description:
-        'O console dos controles de movimento da Nintendo. Usa o mesmo '
-        'núcleo do GameCube, que exige aparelho 64-bit parrudo.',
+        'O console dos controles de movimento: Mario Galaxy, Wii Sports, '
+        'Smash Brawl. Sem Wiimote de verdade, os jogos de controle '
+        'clássico funcionam melhor.',
   ),
 ];
 

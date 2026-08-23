@@ -22,7 +22,7 @@ class HomeScreen extends StatelessWidget {
     final cores = context.watch<CoreController>();
 
     final featured = kConsoleCatalog
-        .where((s) => s.status == ConsoleStatus.ready)
+        .where((s) => s.status != ConsoleStatus.soon)
         .toList();
     final recentPlayed = library.recentPlayed.take(6).toList();
     final recentAdded = library.recentlyAdded.take(5).toList();
@@ -114,8 +114,14 @@ class _HeroHeader extends StatelessWidget {
         maxTilt: 0.10,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(24),
-          child: SizedBox(
-            height: 210,
+          child: Container(
+            height: 228,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: AppTheme.neon.withValues(alpha: 0.25),
+              ),
+            ),
             child: Stack(
               fit: StackFit.expand,
               children: [

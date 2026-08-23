@@ -105,7 +105,7 @@ class SettingsScreen extends StatelessWidget {
         ),
 
         // ---------------- BIOS ----------------
-        const SectionHeader(title: 'BIOS (PS1 e Nintendo DS)'),
+        const SectionHeader(title: 'BIOS (PlayStation)'),
         _BiosCard(systemDir: cores.systemDir),
         const SectionHeader(title: 'Núcleos de emulação'),
         _Card(
@@ -236,6 +236,12 @@ class SettingsScreen extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppTheme.textMid, fontSize: 12),
               ),
+              const SizedBox(height: 8),
+              const Text(
+                'Fotos dos consoles: Wikimedia Commons (Evan-Amos e outros autores, CC) e fontes públicas — usadas só para identificar os produtos. Nintendo, Sega, Sony, Atari, SNK e Bandai são marcas de seus donos.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppTheme.textMid, fontSize: 11),
+              ),
             ],
           ),
         ),
@@ -312,7 +318,7 @@ class _BiosCardState extends State<_BiosCard> {
       messenger?.showSnackBar(
         SnackBar(
           content: Text('Nome não reconhecido: ${unrecognized.join(', ')}. '
-              'Para NDS use bios7.bin, bios9.bin e firmware.bin.'),
+              'Copiado mesmo assim em minúsculas.'),
         ),
       );
     }
@@ -351,7 +357,6 @@ class _BiosCardState extends State<_BiosCard> {
   @override
   Widget build(BuildContext context) {
     final ps1Ok = requiredBiosFilesFor('ps1').any(_exists);
-    final ndsOk = requiredBiosFilesFor('nds').every(_exists);
     return _Card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -392,21 +397,15 @@ class _BiosCardState extends State<_BiosCard> {
             ),
           ),
           const SizedBox(height: 10),
-          Text('NINTENDO DS (NDS)',
-              style: AppTheme.display(10.5, letterSpacing: 1.2,
-                  color: ndsOk ? AppTheme.neon : AppTheme.textMid)),
-          const SizedBox(height: 4),
-          for (final f in requiredBiosFilesFor('nds')) _fileRow(f),
-          const Padding(
-            padding: EdgeInsets.only(top: 3),
-            child: Text(
-              'OBRIGATÓRIA: sem os 3 arquivos o jogo do DS trava na tela branca.',
-              style: TextStyle(color: AppTheme.yellow, fontSize: 11),
-            ),
+          const Text(
+            'Nintendo DS (DeSmuME) e PS2 (Play!) NÃO precisam de BIOS. '
+            'GameCube/Wii já trazem os dados de sistema embutidos no app.',
+            style: TextStyle(color: AppTheme.textMid, fontSize: 11),
           ),
           const SizedBox(height: 6),
           const Text(
-            'Use apenas BIOS extraída do seu próprio console. Nomes como biosnds9.bin e dsfirmware.bin são renomeados na importação.',
+            'Use apenas BIOS extraída do seu próprio console. Nomes em '
+            'MAIÚSCULAS são normalizados na importação.',
             style: TextStyle(color: AppTheme.textMid, fontSize: 11),
           ),
         ],

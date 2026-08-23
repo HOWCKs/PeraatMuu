@@ -20,6 +20,8 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
+  late final AnimationController _pulse;
+
   @override
   void initState() {
     super.initState();
@@ -27,6 +29,10 @@ class _SplashScreenState extends State<SplashScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1600),
     )..forward();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat(reverse: true);
     _bootstrap();
   }
 
@@ -54,6 +60,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void dispose() {
     _controller.dispose();
+    _pulse.dispose();
     super.dispose();
   }
 
@@ -71,21 +78,31 @@ class _SplashScreenState extends State<SplashScreen>
                   parent: _controller,
                   curve: Curves.easeOutBack,
                 ),
-                child: Container(
-                  width: 140,
-                  height: 140,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: AppTheme.glow(AppTheme.purple, blur: 60),
-                  ),
-                  child: Image.asset(
-                    'assets/images/logo.png',
+                child: AnimatedBuilder(
+                  animation: _pulse,
+                  builder: (context, child) => Container(
                     width: 140,
                     height: 140,
-                    errorBuilder: (_, __, ___) => const Icon(
-                      Icons.sports_esports_rounded,
-                      size: 120,
-                      color: AppTheme.neon,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(36),
+                      boxShadow: AppTheme.glow(
+                        AppTheme.purple,
+                        blur: 40 + 20 * _pulse.value,
+                      ),
+                    ),
+                    child: child,
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(36),
+                    child: Image.asset(
+                      'assets/images/logo.png',
+                      width: 140,
+                      height: 140,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.sports_esports_rounded,
+                        size: 120,
+                        color: AppTheme.neon,
+                      ),
                     ),
                   ),
                 ),
@@ -99,11 +116,14 @@ class _SplashScreenState extends State<SplashScreen>
               ),
               const SizedBox(height: 36),
               const SizedBox(
-                width: 26,
-                height: 26,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.4,
-                  color: AppTheme.neon,
+                width: 150,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.all(Radius.circular(3)),
+                  child: LinearProgressIndicator(
+                    minHeight: 4,
+                    backgroundColor: Color(0xFF1B1B2E),
+                    valueColor: AlwaysStoppedAnimation<Color>(AppTheme.neon),
+                  ),
                 ),
               ),
             ],

@@ -2,6 +2,41 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [1.4.0] - 2026-08-22
+
+### Adicionado
+- **Consoles pesados (APK arm64-v8a, experimentais):**
+  - **PlayStation 2** via núcleo **Play!** — não precisa de BIOS.
+  - **GameCube** e **Wii** via núcleo **Dolphin** — a pasta de dados do
+    sistema (Sys) já vem embutida no app e é extraída automaticamente.
+  - **Nintendo 3DS** via núcleo **Citra**.
+  - Todos com **contexto OpenGL ES 3** dedicado (GLSurfaceView cliente 3)
+    e bloqueio claro em aparelhos 32 bits ("precisa de 64 bits").
+- **NDS sem tela branca:** o núcleo padrão do Nintendo DS agora é o
+  **DeSmuME**, que emula a BIOS internamente — nenhum arquivo extra é
+  necessário. Toque na tela continua funcionando.
+- **Capas reais dos consoles:** todos os cartões agora mostram **fotos
+  reais dos consoles** (Wikimedia Commons e fontes públicas; créditos em
+  Ajustes > Sobre), mantendo nome, fabricante, ano e núcleo de cada um.
+- **Nova arte do app:** herói da tela inicial em panorâmica synthwave com
+  os consoles, logo quadrado neon novo e arte de gabinete para o Arcade.
+- **Biblioteca agrupada por console:** seções com capa, nome e contador
+  de jogos por emulador; a busca e os filtros continuam mostrando lista
+  simples. "Consoles em destaque" da home agora inclui os experimentais.
+- **Splash renovada:** logo com glow pulsante e barra de progresso.
+- **Animações de volta:** o modo "efeitos reduzidos" ficou DESLIGADO por
+  padrão em novas instalações (quem tem aparelho fraco liga nos Ajustes).
+
+### Corrigido
+- **N64 com tela preta na v1.3.2:** a resolução interna forçada em 1x
+  (320x240) dispara um bug do renderizador angrylion. Padrão agora é 2x
+  (640x480) e a opção 1x passa a avisar do risco.
+- **PS1 trava menos:** quando um jogo `.bin` não tem `.cue`, o app gera
+  a folha cue automaticamente ao lado da imagem (o PCSX-ReARMed lê
+  melhor com cue).
+- PS2/GCN/Wii/3DS aparecem no catálogo como experimentais (antes: "em
+  breve"), com notas honestas sobre desempenho esperado.
+
 ## [1.3.2] - 2026-08-05
 
 ### Adicionado
